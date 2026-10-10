@@ -6,7 +6,7 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "ui-preview": "node scripts/start-ui-preview.mjs",
     "build": "next build",
     "start": "next start",
@@ -14,10 +14,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "import:dry-run": "tsx scripts/import-catalog.ts dry-run",
+    "import:adapt-start-database": "tsx scripts/adapt-start-database.ts",
     "import:register-sources": "tsx scripts/import-catalog.ts register-sources",
     "import:stage": "tsx scripts/import-catalog.ts stage",
     "import:upsert": "tsx scripts/import-catalog.ts upsert",
     "import:review-rights": "tsx scripts/import-catalog.ts review-rights",
+    "import:attest-data": "tsx scripts/import-catalog.ts attest-data",
+    "import:publish": "tsx scripts/import-catalog.ts publish",
+    "supabase:integration-tokens": "tsx scripts/set-supabase-integration-tokens.ts",
     "test:integration:supabase": "tsx scripts/test-supabase-integration.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

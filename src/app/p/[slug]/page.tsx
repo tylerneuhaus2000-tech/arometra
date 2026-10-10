@@ -1,11 +1,13 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageErrorState } from '@/components/catalog-state';
 import { DataSourceNotice } from '@/components/data-source-notice';
 import { ProductCard } from '@/components/product-card';
 import { SiteFrame } from '@/components/site-frame';
+import { TasteProfile } from '@/components/taste-profile';
+import type { CatalogProduct, CommunityReview, TastingNote } from '@/lib/catalog/model';
 import { getModeStatus, getNavigationCategories, getProductBySlug, getSimilarProducts } from '@/lib/catalog/repository';
-import type { CatalogProduct, ProductSource } from '@/lib/catalog/model';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +30,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = result.product;
   const recommendations = await getSimilarProducts(product);
   const modeStatus = getModeStatus(result.mode);
+  const manufacturerNotes = product.tastingNotes.filter((note) => note.authorType === 'manufacturer');
+  const expertNotes = product.tastingNotes.filter((note) => note.authorType === 'expert' || note.authorType === 'editorial');
+  const hasProductionDetails = Boolean(
+    product.region || product.countryCode || product.distillationDetails || product.maturationDetails,
+  );
+  const hasTechnicalDetails = Boolean(
+    product.abvPercent !== null || product.ageYears !== null || product.variants.length > 0,
+  );
 
   return (
     <SiteFrame categories={categories} selectedCategory={product.categorySlug} activeItem="category">
@@ -40,112 +50,81 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         </nav>
 
         <section className="product-intro" aria-labelledby="product-title">
-          <div className="product-visual">
-            <div className="product-visual__shape" aria-hidden="true" />
-            <span>Kein freigegebenes Bild</span>
+          <div className="product-visual-wrap">
+            <div className={`product-visual${product.image ? ' product-visual--photo' : ' product-visual--unavailable'}`}>
+              {product.image ? (
+                <Image
+                  src={product.image.src}
+                  alt={product.image.altText}
+                  fill
+                  sizes="(max-width: 700px) 92vw, (max-width: 1100px) 46vw, 34vw"
+                  unoptimized
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="product-visual__shape" aria-hidden="true" />
+              )}
+            </div>
           </div>
           <div className="product-intro__copy">
-            <p className="eyebrow">{product.brandName ?? product.categoryName}</p>
+            <p className="eyebrow">{product.categoryName}</p>
             <h1 id="product-title">{product.name}</h1>
-            {product.brandName && <p className="product-brand">{product.brandName}</p>}
-            {result.mode === 'fixtures' ? (
-              <p className="product-summary">Dieses synthetische Prüfprofil enthält keine realen Produktangaben.</p>
-            ) : (
-              <p className="product-summary">{product.description ?? 'Für dieses Produkt liegt noch keine freigegebene Beschreibung vor.'}</p>
-            )}
-            <Link className="text-link" href="/entdecken">Zurück zum Katalog <span aria-hidden="true">→</span></Link>
+            {product.family && <p className="product-brand">{product.family}</p>}
+            {product.description && <p className="product-summary">{product.description}</p>}
           </div>
         </section>
 
-        {result.mode === 'fixtures' ? (
-          <section className="detail-section" aria-labelledby="test-data-title">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Nur für Funktionstests</p>
-                <h2 id="test-data-title">Synthetische Testmerkmale</h2>
-              </div>
-            </div>
-            <ul className="test-feature-list">
-              {product.flavors.map((flavor) => <li key={flavor.code}>{flavor.label}</li>)}
-            </ul>
-            <p className="muted-copy">Die Werte werden nur intern für den Empfehlungs-Test genutzt und nicht als Geschmack oder Qualität dargestellt.</p>
-          </section>
-        ) : (
-          <ProductFacts product={product} />
-        )}
-
-        <section className="detail-section" aria-labelledby="notes-title">
+        {(product.sensoryProfile.length > 0 || result.mode === 'fixtures') && <section className="detail-section" aria-labelledby="taste-title">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Quelle und Autor getrennt</p>
-              <h2 id="notes-title">Verkostungsnotizen</h2>
+              <h2 id="taste-title">Geschmack &amp; Aroma</h2>
             </div>
           </div>
-          {product.tastingNotes.length > 0 ? (
-            <div className="notes-list">
-              {product.tastingNotes.map((note) => (
-                <article className="tasting-note" key={note.id}>
-                  <p className="tasting-note__byline">
-                    {authorTypeLabel(note.authorType)}{note.authorLabel ? ` · ${note.authorLabel}` : ''}
-                    {note.tastedAt ? ` · Verkostet am ${formatDate(note.tastedAt)}` : ''}
-                  </p>
-                  <NoteField label="Nase" value={note.nose} />
-                  <NoteField label="Gaumen" value={note.palate} />
-                  <NoteField label="Nachklang" value={note.finish} />
-                  <NoteField label="Zusammenfassung" value={note.overall} />
-                  <p className="source-line">
-                    Quelle: <SourceAnchor source={{ id: note.id, name: note.sourceName, url: note.sourceUrl, attribution: note.attribution, fields: [] }} />
-                  </p>
-                </article>
-              ))}
-            </div>
+          {result.mode === 'fixtures' ? (
+            <>
+              <p className="empty-copy">Synthetische Prüfmerkmale sind nur für interne Funktionstests bestimmt.</p>
+              <ul className="test-feature-list">
+                {product.flavors.map((flavor) => <li key={flavor.code}>{flavor.label}</li>)}
+              </ul>
+            </>
           ) : (
-            <p className="empty-copy">
-              {result.mode === 'fixtures'
-                ? 'Für synthetische Prüfprofile gibt es keine Verkostungsnotizen.'
-                : 'Für dieses Produkt liegen derzeit keine freigegebenen Verkostungsnotizen vor.'}
-            </p>
+            <>
+              <TasteProfile product={product} />
+              {result.mode === 'local-start-database' && product.qualitativeFlavors && product.qualitativeFlavors.length > 0 && (
+                <p className="muted-copy">Lokale, ungeprüfte Testmerkmale: {product.qualitativeFlavors.map((flavor) => flavor.label).join(' · ')}</p>
+              )}
+            </>
           )}
-        </section>
+        </section>}
 
-        <section className="detail-section source-section" aria-labelledby="sources-title">
+        {manufacturerNotes.length > 0 && <section className="detail-section" aria-labelledby="tasting-title">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Nachvollziehbarkeit</p>
-              <h2 id="sources-title">Datenquellen</h2>
+              <h2 id="tasting-title">Geruch, Gaumen, Mundgefühl &amp; Nachklang</h2>
             </div>
           </div>
-          {product.sources.length > 0 ? (
-            <ul className="source-list">
-              {product.sources.map((source) => (
-                <li key={source.id}>
-                  <div>
-                    <strong><SourceAnchor source={source} /></strong>
-                    <ul className="source-field-list">
-                      {source.fields.map((field) => (
-                        <li key={field.path}>
-                          {fieldLabel(field.path)}{field.verifiedAt ? ` · geprüft am ${formatDate(field.verifiedAt)}` : ''}
-                        </li>
-                      ))}
-                    </ul>
-                    {source.attribution && <p>{source.attribution}</p>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="empty-copy">
-              {result.mode === 'fixtures'
-                ? 'Synthetische Testprofile haben keine externen Produktquellen.'
-                : 'Für diese Produktseite sind noch keine öffentlichen Quellen hinterlegt.'}
-            </p>
-          )}
-        </section>
+          <div className="notes-list">
+            {manufacturerNotes.map((note) => <TastingNoteCard key={note.id} note={note} />)}
+          </div>
+        </section>}
+
+        {hasProductionDetails && <section className="detail-section" aria-labelledby="production-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="production-title">Herstellung &amp; Herkunft</h2>
+            </div>
+          </div>
+          <dl className="facts-grid facts-grid--process">
+            {product.region && <Fact label="Herkunftsregion" value={product.region} />}
+            {product.countryCode && <Fact label="Herkunftsland" value={formatCountry(product.countryCode)} />}
+            {product.distillationDetails && <Fact label="Herstellung" value={product.distillationDetails} />}
+            {product.maturationDetails && <Fact label="Reifung" value={product.maturationDetails} />}
+          </dl>
+        </section>}
 
         <section className="detail-section recommendations-section" aria-labelledby="recommendations-title">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Begründet aus vorhandenen Merkmalen</p>
               <h2 id="recommendations-title">Ähnliche Produkte</h2>
             </div>
           </div>
@@ -163,44 +142,67 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <div className="empty-state">
               <p className="eyebrow">Noch keine fundierte Alternative</p>
               <h3>Ähnliche Produkte</h3>
-              <p>Für dieses Produkt liegen noch nicht genügend geprüfte Geschmacksdaten für fundierte Empfehlungen vor.</p>
+              <p>{result.mode === 'local-start-database'
+                ? 'In der Testdatenbank wurden nicht mindestens zwei gemeinsame qualitative Merkmale gefunden.'
+                : 'Für dieses Produkt liegen noch nicht genügend geprüfte Geschmacksdaten für fundierte Empfehlungen vor.'}</p>
             </div>
           )}
           {modeStatus.isSynthetic && <p className="muted-copy">Die Übereinstimmungen hier prüfen nur die Empfehlungslogik mit Testmerkmalen.</p>}
+          {result.mode === 'local-start-database' && <p className="muted-copy">Diese Vorschläge beruhen auf gemeinsamen, ungeprüften qualitativen Tags aus der lokalen Testdatenbank.</p>}
         </section>
+
+        {product.communityReviews.length > 0 && <section className="detail-section" aria-labelledby="community-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="community-title">Erfahrungen echter Nutzer</h2>
+            </div>
+          </div>
+          <div className="notes-list">
+            {product.communityReviews.map((review) => <CommunityReviewCard key={review.id} review={review} />)}
+          </div>
+        </section>}
+
+        {expertNotes.length > 0 && <section className="detail-section" aria-labelledby="expert-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="expert-title">Expertenmeinungen &amp; Auszeichnungen</h2>
+            </div>
+          </div>
+          <div className="notes-list">
+            {expertNotes.map((note) => <TastingNoteCard key={note.id} note={note} />)}
+          </div>
+        </section>}
+
+        {hasTechnicalDetails && <section className="detail-section" aria-labelledby="technical-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="technical-title">Technische Angaben</h2>
+            </div>
+          </div>
+          <TechnicalDetails product={product} localPreview={result.mode === 'local-start-database'} />
+        </section>}
+
       </main>
     </SiteFrame>
   );
 }
 
-function ProductFacts({ product }: { product: CatalogProduct }) {
+function TechnicalDetails({ product, localPreview }: { product: CatalogProduct; localPreview: boolean }) {
   return (
-    <section className="detail-section" aria-labelledby="facts-title">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Belegte Angaben</p>
-          <h2 id="facts-title">Steckbrief</h2>
-        </div>
-      </div>
-      <dl className="facts-grid">
-        <Fact label="Kategorie" value={product.categoryName} />
-        <Fact label="Produkttyp" value={product.family ?? 'Nicht belegt'} />
-        <Fact label="Herkunft" value={product.region ?? product.countryCode ?? 'Nicht belegt'} />
-        <Fact label="Alkoholgehalt" value={product.abvPercent === null ? 'Nicht belegt' : `${product.abvPercent.toFixed(1)} % vol.`} />
-        <Fact label="Alter" value={product.ageYears === null ? 'Nicht belegt' : `${product.ageYears} Jahre`} />
-      </dl>
-      <dl className="facts-grid facts-grid--process">
-        <Fact label="Herstellung" value={product.distillationDetails ?? 'Nicht belegt'} />
-        <Fact label="Reifung" value={product.maturationDetails ?? 'Nicht belegt'} />
-      </dl>
-      <div className="variant-section">
+    <>
+      {(product.abvPercent !== null || product.ageYears !== null) && (
+        <dl className="facts-grid">
+          {product.abvPercent !== null && <Fact label="Alkoholgehalt" value={`${product.abvPercent.toFixed(1)} % vol.`} />}
+          {product.ageYears !== null && <Fact label="Alter" value={`${product.ageYears} Jahre`} />}
+        </dl>
+      )}
+      {product.variants.length > 0 && <div className="variant-section">
         <h3>Abfüllungen</h3>
-        {product.variants.length > 0 ? (
           <ul className="variant-list">
             {product.variants.map((variant) => (
               <li key={variant.id}>
                 <div>
-                  <strong>{variant.editionLabel ?? 'Freigegebene Abfüllung'}</strong>
+                    <strong>{variant.editionLabel ?? (localPreview ? 'Abfüllung aus Testdatenbank' : 'Freigegebene Abfüllung')}</strong>
                   <p>
                     {variant.volumeMl ? `${variant.volumeMl} ml` : 'Flaschengröße nicht belegt'}
                     {variant.marketCountryCode ? ` · Markt ${variant.marketCountryCode}` : ''}
@@ -208,46 +210,43 @@ function ProductFacts({ product }: { product: CatalogProduct }) {
                   </p>
                   {variant.gtin && <p>GTIN: {variant.gtin}</p>}
                 </div>
-                {variant.sources.map((source) => (
-                  <p className="source-line" key={source.id}>
-                    Abfüllungsnachweis: <SourceAnchor source={source} />
-                    {' · '}{source.fields.map((field) => (
-                      `${fieldLabel(field.path)}${field.verifiedAt ? ` (geprüft ${formatDate(field.verifiedAt)})` : ''}`
-                    )).join(', ')}
-                  </p>
-                ))}
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="empty-copy">Für dieses Produkt ist noch keine freigegebene Abfüllung hinterlegt.</p>
-        )}
-      </div>
-      <div className="flavor-section">
-        <h3>Geschmacksprofil</h3>
-        {product.flavors.length > 0 ? (
-          <ul className="flavor-list">
-            {product.flavors.map((flavor) => (
-              <li key={flavor.code}>
-                <span>{flavor.label}</span>
-                <span className="flavor-meter" role="img" aria-label={`${flavor.label}: ${flavor.value} von 10`}>
-                  <span style={{ width: `${Math.max(0, Math.min(100, flavor.value * 10))}%` }} />
-                </span>
-                <span className="flavor-value">{flavor.value}/10</span>
-                <span className="flavor-source">
-                  {flavorMethodLabel(flavor.method)} · {safeHttpUrl(flavor.sourceUrl)
-                    ? <a href={safeHttpUrl(flavor.sourceUrl) ?? undefined} target="_blank" rel="noreferrer">{flavor.sourceName}<span className="visually-hidden"> (öffnet externe Quelle)</span></a>
-                    : flavor.sourceName}
-                  {flavor.verifiedAt ? ` · geprüft am ${formatDate(flavor.verifiedAt)}` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="empty-copy">Für dieses Produkt sind noch keine geprüften Geschmacksdimensionen hinterlegt.</p>
-        )}
-      </div>
-    </section>
+      </div>}
+    </>
+  );
+}
+
+function TastingNoteCard({ note }: { note: TastingNote }) {
+  return (
+    <article className="tasting-note">
+      <p className="tasting-note__byline">
+        {authorTypeLabel(note.authorType)}{note.authorLabel ? ` · ${note.authorLabel}` : ''}
+        {note.tastedAt ? ` · Verkostet am ${formatDate(note.tastedAt)}` : ''}
+      </p>
+      <NoteField label="Geruch" value={note.nose} />
+      <NoteField label="Gaumen" value={note.palate} />
+      <NoteField label="Mundgefühl" value={note.mouthfeel} />
+      <NoteField label="Nachklang" value={note.finish} />
+      {note.overall && <NoteField label="Einordnung" value={note.overall} />}
+    </article>
+  );
+}
+
+function CommunityReviewCard({ review }: { review: CommunityReview }) {
+  return (
+    <article className="tasting-note community-review">
+      <p className="tasting-note__byline">
+        {review.displayName ?? 'Nutzerbeitrag'} · {formatDate(review.createdAt)}
+        {review.verifiedPurchase && <span className="review-badge">Kaufbeleg geprüft</span>}
+      </p>
+      <p className="community-review__rating">Bewertung: {review.rating} von 5</p>
+      <NoteField label="Geruch" value={review.nose} />
+      <NoteField label="Gaumen" value={review.palate} />
+      <NoteField label="Nachklang" value={review.finish} />
+      <NoteField label="Erfahrung" value={review.overall} />
+    </article>
   );
 }
 
@@ -260,65 +259,19 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatCountry(countryCode: string | null): string {
+  return countryCode ? new Intl.DisplayNames(['de'], { type: 'region' }).of(countryCode) ?? countryCode : 'Nicht belegt';
+}
+
 function NoteField({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
   return <p className="note-field"><strong>{label}</strong><span>{value}</span></p>;
-}
-
-function SourceAnchor({ source }: { source: ProductSource }) {
-  const externalUrl = safeHttpUrl(source.url);
-  return externalUrl
-    ? <a href={externalUrl} target="_blank" rel="noreferrer">{source.name}<span className="visually-hidden"> (öffnet externe Quelle)</span></a>
-    : <span>{source.name}</span>;
-}
-
-function safeHttpUrl(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function fieldLabel(field: string): string {
-  const labels: Record<string, string> = {
-    name: 'Produktname',
-    brand_id: 'Marke',
-    primary_category_id: 'Kategorie',
-    product_family: 'Produkttyp',
-    origin_country_code: 'Herkunft',
-    origin_region: 'Region',
-    age_years: 'Alter',
-    variant_gtin: 'GTIN',
-    'variant:gtin': 'GTIN',
-    'variant:volume_ml': 'Flaschengröße',
-    'variant:market_country_code': 'Markt',
-    'variant:abv_percent_override': 'Alkoholgehalt der Abfüllung',
-    'variant:edition_label': 'Edition',
-    distillation_details: 'Destillation',
-    maturation_details: 'Reifung',
-    description: 'Beschreibung',
-    abv_percent: 'Alkoholgehalt',
-  };
-  return labels[field] ?? 'Produktangabe';
 }
 
 function formatDate(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) return value;
   return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeZone: 'UTC' }).format(parsed);
-}
-
-function flavorMethodLabel(method: string): string {
-  const labels: Record<string, string> = {
-    manufacturer: 'Herstellerangabe',
-    expert: 'Fachverkostung',
-    editorial: 'Redaktionelle Erhebung',
-    community_aggregated: 'Community-Aggregat',
-  };
-  return labels[method] ?? 'Geprüfte Erhebung';
 }
 
 function authorTypeLabel(authorType: 'manufacturer' | 'expert' | 'editorial' | 'consumer'): string {

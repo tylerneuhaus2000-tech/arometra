@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
 
 const syntheticQrCode = 'fixture000000000000000000001';
 const screenshotDir = 'artifacts/qa/ui-redesign';
@@ -45,10 +45,13 @@ test('search opens a dynamic product profile with explained test recommendations
   await expect(page.getByRole('heading', { name: 'Synthetisches Prüfprofil Alpha' })).toBeVisible();
   await page.getByRole('link', { name: /Synthetisches Prüfprofil Alpha/ }).click();
   await expect(page).toHaveURL(/\/p\/synthetisches-pruefprofil-alpha$/);
-  await expect(page.getByRole('heading', { name: 'Synthetische Testmerkmale' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Geschmack & Aroma' })).toBeVisible();
+  await expect(page.getByText(/Synthetische Prüfmerkmale sind nur für interne Funktionstests bestimmt/i)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Ähnliche Produkte' })).toBeVisible();
   await expect(page.getByText(/Gemeinsame Testmerkmale: Prüfmerkmal/)).toBeVisible();
-  await expect(page.getByText(/keine Verkostungsnotizen/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Wissenswertes & besondere Fakten' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Erfahrungen echter Nutzer' })).toHaveCount(0);
+  await expect(page.locator('.product-source-details')).toHaveCount(0);
   await hideDevelopmentIndicator(page);
 });
 

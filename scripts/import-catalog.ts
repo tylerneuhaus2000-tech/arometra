@@ -110,7 +110,18 @@ async function callRpc(name: string, args: JsonRecord): Promise<unknown> {
   } catch {
     throw new Error('SUPABASE_RPC_NETWORK_ERROR');
   }
-  if (!response.ok) throw new Error(`SUPABASE_RPC_REJECTED_${response.status}`);
+  if (!response.ok) {
+    let code = 'UNKNOWN';
+    let detail = '';
+    try {
+      const payload = await response.json() as { code?: unknown; message?: unknown };
+      if (typeof payload.code === 'string' && /^[A-Z0-9]+$/.test(payload.code)) code = payload.code;
+      if (typeof payload.message === 'string') detail = payload.message.replace(/[\r\n\t]+/g, ' ').slice(0, 240);
+    } catch {
+      // Keep the error generic if the provider returned a non-JSON body.
+    }
+    throw new Error(`SUPABASE_RPC_REJECTED_${response.status}_${code}${detail ? `: ${detail}` : ''}`);
+  }
   try {
     return await response.json() as unknown;
   } catch {
@@ -132,14 +143,22 @@ async function readInput(filePath: string): Promise<{ raw: string; values: unkno
 function uniqueSources(records: CatalogImportRecord[]): JsonRecord[] {
   const sources = new Map<string, JsonRecord>();
   for (const record of records) {
-    sources.set(record.source.url, {
-      name: record.source.name,
-      type: record.source.type,
-      url: record.source.url,
-      termsUrl: record.source.termsUrl ?? null,
-      licenseId: record.source.licenseId ?? null,
-      attribution: record.source.attribution ?? null,
-    });
+    const sourceRecords = [record.source, ...(record.product.image ? [record.product.image.source] : [])];
+    for (const source of sourceRecords) {
+      const existing = sources.get(source.url);
+      const candidate = {
+        name: source.name,
+        type: source.type,
+        url: source.url,
+        termsUrl: source.termsUrl ?? null,
+        licenseId: source.licenseId ?? null,
+        attribution: source.attribution ?? null,
+      };
+      if (existing && JSON.stringify(existing) !== JSON.stringify(candidate)) {
+        throw new Error('SOURCE_METADATA_CONFLICT_FOR_CANONICAL_URL');
+      }
+      sources.set(source.url, candidate);
+    }
   }
   return [...sources.values()];
 }
@@ -155,6 +174,8 @@ function printHelp(): void {
     '  npm run import:register-sources -- --file <file.csv|file.json|file.jsonl>',
     '  npm run import:stage -- --file <file.csv|file.json|file.jsonl>',
     '  npm run import:upsert -- --job-id <uuid> [--limit 1..5000]  # creates unpublished drafts',
+    '  npm run import:attest-data -- --source-id <uuid> --checked-at <ISO timestamp> --note <operator approval>',
+    '  npm run import:publish -- --job-id <uuid> --note <editorial approval>',
     '  npm run import:review-rights -- --source-id <uuid> [--data approved|unreviewed|blocked] [--text ...] [--image ...]',
     '    Review also accepts --license-id, --terms-url, --terms-checked-at, and --notes.',
     '  Mutating commands require AROMETRA_SUPABASE_TARGET=local or development, a publishable key,',
@@ -233,6 +254,33 @@ async function upsertJob(args: string[]): Promise<number> {
   return 0;
 }
 
+async function attestDataRights(args: string[]): Promise<number> {
+  const sourceId = option(args, '--source-id');
+  const checkedAt = option(args, '--checked-at');
+  const note = option(args, '--note');
+  if (!sourceId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceId)) throw new Error('SOURCE_ID_REQUIRED');
+  if (!checkedAt || !Number.isFinite(Date.parse(checkedAt)) || Date.parse(checkedAt) > Date.now()) throw new Error('RIGHTS_CHECK_TIMESTAMP_INVALID');
+  if (!note || note.trim().length < 10 || note.length > 5000) throw new Error('OPERATOR_RIGHTS_NOTE_REQUIRED');
+  const result = await callRpc('attest_import_source_data_rights', {
+    p_source_id: sourceId,
+    p_checked_at: new Date(checkedAt).toISOString(),
+    p_note: note.trim(),
+  });
+  process.stdout.write(`${JSON.stringify({ result }, null, 2)}\n`);
+  return 0;
+}
+
+async function publishJob(args: string[]): Promise<number> {
+  const jobId = option(args, '--job-id');
+  const note = option(args, '--note');
+  if (!jobId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId)) throw new Error('IMPORT_JOB_ID_REQUIRED');
+  if (!note || note.trim().length < 10 || note.length > 1000) throw new Error('EDITORIAL_REVIEW_NOTE_REQUIRED');
+  const tagFilter = await callRpc('filter_import_job_category_tags', { p_job_id: jobId });
+  const result = await callRpc('review_and_publish_catalog_import_job_v2', { p_job_id: jobId, p_note: note.trim() });
+  process.stdout.write(`${JSON.stringify({ tagFilter, result }, null, 2)}\n`);
+  return 0;
+}
+
 async function main(): Promise<number> {
   const [command, ...args] = process.argv.slice(2);
   if (!command || command === 'help' || flag(args, '--help')) {
@@ -248,6 +296,8 @@ async function main(): Promise<number> {
   }
   if (command === 'review-rights') return reviewRights(args);
   if (command === 'upsert') return upsertJob(args);
+  if (command === 'attest-data') return attestDataRights(args);
+  if (command === 'publish') return publishJob(args);
   throw new Error('UNKNOWN_IMPORT_COMMAND');
 }
 

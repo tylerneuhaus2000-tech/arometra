@@ -11,6 +11,15 @@ export function DataSourceNotice({ mode, message }: { mode: DataMode; message?: 
     );
   }
 
+  if (mode === 'local-start-database') {
+    return (
+      <aside className="data-notice data-notice--local-test" aria-label="Lokale Testdatenbank, nicht freigegeben">
+        <span className="data-notice__label">Lokale Testdatenbank</span>
+        <span>Reale Produktdaten aus Herstellerquellen; noch nicht redaktionell freigegeben. Bildrechte ungeklärt, Bilder nur lokal sichtbar.</span>
+      </aside>
+    );
+  }
+
   if (mode === 'unconfigured') {
     return (
       <aside className="data-notice data-notice--neutral" role="status">

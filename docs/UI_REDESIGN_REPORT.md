@@ -40,7 +40,13 @@ The set was visually compared with the supplied Modern Oak reference: compact he
 - `npm run ui-preview` was exercised on port 3130; `lsof` confirmed listener `127.0.0.1:3130`. Local preview returned 200; a non-loopback Host returned 404.
 - Production smoke used the successful build with both `AROMETRA_UI_PREVIEW=true` and fixture mode set: `/ui-preview`, `/ui-preview/designprofil-a`, and the preview image endpoint all returned 404. `/` returned 200 with the production fixture block and without `Designprofil A` in the HTML.
 
-## Boundaries and blockers
+## Current backend follow-up — 2026-10-10
+
+- The Modern Oak shell continues to read its catalog through the existing Supabase repository. The confirmed development project now has 47 categories, 0 products, and 0 product images. The normal `/entdecken` route has been checked against that live empty catalog; no design-fixture product appears there.
+- Live anonymous PostgREST checks passed for catalog/category/image reads, the product-image source join, catalog search, the exact product detail relationship, the sensory profile RPC, and an unknown QR lookup. Raw sensory tables, admin membership, and anonymous image review remain denied. A live detail query ambiguity was fixed by naming `products_primary_category_id_fkey` explicitly.
+- The authenticated owner/editor and non-admin integration cases remain pending fresh, separate JWTs. Until a real product and licensed packshot are reviewed and published, the screenshot set below remains a synthetic layout preview and is not evidence of a real product page.
+
+## Boundaries and blockers at the time of the UI pass
 
 - Supabase credentials/project configuration are still absent. No live Supabase, Auth, PostgREST, RLS, or real-product query was executed as part of this UI work. The live catalog count remains unknown; the repository research audit last verified zero imported real products.
 - Screenshots demonstrate layout with explicitly synthetic fixtures, not a production data flow. A live card/search/detail/QR acceptance run still requires a real, rights-cleared product record in the development database.

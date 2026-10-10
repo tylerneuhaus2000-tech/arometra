@@ -8,7 +8,10 @@ export async function GET(
   context: { params: Promise<{ code: string }> },
 ) {
   const { code } = await context.params;
-  if (!/^[A-Za-z0-9_-]{22,128}$/.test(code)) return response('Dieser QR-Link ist nicht verfügbar.', 404);
+  const localPreviewCode = process.env.NODE_ENV === 'development'
+    && process.env.AROMETRA_DATA_MODE === 'local-start-database'
+    && /^AR-\d{4}$/.test(code);
+  if (!/^[A-Za-z0-9_-]{22,128}$/.test(code) && !localPreviewCode) return response('Dieser QR-Link ist nicht verfügbar.', 404);
 
   const result = await resolveQrCode(code);
   if (result.status === 'active' && result.slug) {

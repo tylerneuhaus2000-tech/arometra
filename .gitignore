@@ -4,6 +4,7 @@ node_modules/
 .next-build/
 .next-ui-redesign/
 .next-ui-preview/
+.next-image-supabase-build/
 .env
 .env.*
 !.env.example

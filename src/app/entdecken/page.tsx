@@ -35,7 +35,9 @@ export default async function DiscoverPage({
         <header className="page-heading">
           <p className="eyebrow">Der Katalog</p>
           <h1>Alle Spirituosen</h1>
-          <p>Freigegebene Produkte und belegte Angaben entdecken.</p>
+          <p>{result.mode === 'local-start-database'
+            ? 'Produkte aus der lokalen Testdatenbank durchsuchen.'
+            : 'Freigegebene Produkte und belegte Angaben entdecken.'}</p>
         </header>
 
         {result.status === 'error' ? (
@@ -47,7 +49,9 @@ export default async function DiscoverPage({
         ) : (
           <>
             <div className="results-heading" aria-live="polite">
-              <p>{result.total} {result.mode === 'fixtures' ? 'synthetische Testprofile' : 'freigegebene Produkte'}</p>
+              <p>{result.total} {result.mode === 'fixtures'
+                ? 'synthetische Testprofile'
+                : result.mode === 'local-start-database' ? 'Produkte in der lokalen Testdatenbank' : 'freigegebene Produkte'}</p>
               {parsed.query.q && <p>Suche: <strong>{parsed.query.q}</strong></p>}
             </div>
             <div className="product-grid">

@@ -87,6 +87,85 @@ describe('PostgreSQL migration and access policies', () => {
     expect(products.rows[0].count).toBe('0');
   });
 
+  it('seeds category-specific aroma axes without any intensity values', async () => {
+    const db = await freshDatabase();
+    const counts = await db.query<{ dimensions: string; profile_axes: string; tag_rules: string; measurements: string }>(
+      `select
+        (select count(*)::text from public.sensory_dimensions) as dimensions,
+        (select count(*)::text from public.category_sensory_dimensions) as profile_axes,
+        (select count(*)::text from public.category_sensory_tag_rules) as tag_rules,
+        (select count(*)::text from public.product_sensory_measurements) as measurements`,
+    );
+    expect(counts.rows[0]).toEqual({ dimensions: '80', profile_axes: '80', tag_rules: '213', measurements: '0' });
+
+    const roots = await db.query<{ whisky: string; cognac: string; armagnac: string | null }>(
+      `select
+        (select slug from public.categories where id = private.resolve_sensory_profile_category((select id from public.categories where slug = 'whisky-scotch'))) as whisky,
+        (select slug from public.categories where id = private.resolve_sensory_profile_category((select id from public.categories where slug = 'cognac'))) as cognac,
+        (select slug from public.categories where id = private.resolve_sensory_profile_category((select id from public.categories where slug = 'armagnac'))) as armagnac`,
+    );
+    expect(roots.rows[0]).toEqual({ whisky: 'whisky', cognac: 'cognac', armagnac: null });
+
+    const cognacAxes = await db.query<{ code: string }>(
+      `select d.code from public.category_sensory_dimensions p
+       join public.sensory_dimensions d on d.code = p.dimension_code
+       join public.categories c on c.id = p.category_id
+       where c.slug = 'cognac' order by p.display_order`,
+    );
+    expect(cognacAxes.rows).toHaveLength(8);
+    expect(cognacAxes.rows.every((row) => !row.code.startsWith('wh_'))).toBe(true);
+  });
+
+  it('serves only approved category descriptors and measurements through the public profile RPC', async () => {
+    const db = await freshDatabase();
+    const { productId, sourceId } = await addSyntheticPublishedProduct(db, 'whisky-scotch', 'sensory');
+    const category = await db.query<{ id: string }>("select id from public.categories where slug = 'whisky'");
+    const categoryId = category.rows[0].id;
+    await db.query(
+      `insert into public.product_sensory_descriptors
+        (product_id, category_id, dimension_code, tag_code, source_id, evidence_type, stage,
+         verification_status, verified_at, raw_descriptor_hash)
+       values ($1, $2, 'wh_smoke', 'rauchig', $3, 'manufacturer', 'nose', 'pending', null, null)`,
+      [productId, categoryId, sourceId],
+    );
+
+    await db.exec('set role anon');
+    await expect(db.query('select * from public.product_sensory_descriptors')).rejects.toThrow();
+    let profile = await db.query<{ dimension_code: string; tag_code: string | null; intensity: string | null }>(
+      'select dimension_code, tag_code, intensity from public.get_product_sensory_profile($1)',
+      [productId],
+    );
+    expect(profile.rows).toHaveLength(8);
+    expect(profile.rows.every((row) => row.intensity === null && row.tag_code === null)).toBe(true);
+    await db.exec('reset role');
+
+    await db.query(
+      `update public.product_sensory_descriptors set
+         verification_status = 'approved', verified_at = now(),
+         raw_descriptor_hash = md5(concat_ws(E'\\n', category_id::text, dimension_code, tag_code, evidence_type::text, stage))
+       where product_id = $1`,
+      [productId],
+    );
+    await db.query(
+      `insert into public.product_sensory_measurements
+        (product_id, category_id, dimension_code, value, measurement_method, evidence_type,
+         source_id, verification_status, verified_at, raw_measurement_hash)
+       values ($1, $2, 'wh_smoke', 6, 'TEST ONLY — controlled scale check', 'expert', $3,
+         'approved', now(), md5(concat_ws(E'\\n', $2::uuid::text, 'wh_smoke', 6.00::numeric(4,2)::text,
+           'TEST ONLY — controlled scale check', 'expert')))`,
+      [productId, categoryId, sourceId],
+    );
+
+    await db.exec('set role anon');
+    profile = await db.query<{ dimension_code: string; tag_code: string | null; intensity: string | null }>(
+      'select dimension_code, tag_code, intensity from public.get_product_sensory_profile($1)',
+      [productId],
+    );
+    const smoke = profile.rows.find((row) => row.dimension_code === 'wh_smoke');
+    expect(smoke).toEqual({ dimension_code: 'wh_smoke', tag_code: 'rauchig', intensity: '6.00' });
+    expect(profile.rows.find((row) => row.dimension_code === 'wh_grain')?.intensity).toBeNull();
+  });
+
   it('exposes verification dates through the public source view schema', async () => {
     const db = await freshDatabase();
     const result = await db.query<{ column_name: string }>(
@@ -167,6 +246,139 @@ describe('PostgreSQL migration and access policies', () => {
        values ($1, 'editorial', 'TEST ONLY — note', $2, 'approved', 'approved')`,
       [productId, sourceId],
     )).rejects.toThrow(/text rights/i);
+  });
+
+  it('requires image rights and approved product evidence before exposing official packshots', async () => {
+    const db = await freshDatabase();
+    const { productId, sourceId } = await addSyntheticPublishedProduct(db, 'whisky', 'image-rights');
+    const image = await db.query<{ id: string }>(
+      `insert into public.product_images (product_id, source_url, source_id, alt_text)
+       values ($1, 'https://images.example.test/test-only-packshot.png', $2, 'TEST ONLY — Produkt-Packshot')
+       returning id`,
+      [productId, sourceId],
+    );
+
+    await db.exec('set role anon');
+    expect((await db.query('select id,source_url from public.product_images')).rows).toHaveLength(0);
+    await db.exec('reset role');
+
+    await db.query(
+      `update private.source_rights_reviews
+       set image_rights_status = 'approved', terms_checked_at = now(), reviewed_at = now()
+       where source_id = $1`,
+      [sourceId],
+    );
+    await db.query(
+      `update public.product_images
+       set image_license_status = 'approved', review_status = 'approved',
+           raw_image_hash = md5(concat_ws(E'\\n', coalesce(storage_path, ''), coalesce(source_url, ''),
+             source_id::text, alt_text, coalesce(attribution, ''), coalesce(photographer, '')))
+       where id = $1`,
+      [image.rows[0].id],
+    );
+
+    await db.exec('set role anon');
+    const visible = await db.query<{ id: string; source_url: string }>('select id,source_url from public.product_images');
+    expect(visible.rows).toEqual([{ id: image.rows[0].id, source_url: 'https://images.example.test/test-only-packshot.png' }]);
+    await db.exec('reset role');
+
+    await expect(db.query(
+      `insert into public.product_images (product_id, source_url, source_id, alt_text)
+       values ($1, 'http://images.example.test/test-only-packshot.png', $2, 'TEST ONLY — unsecure packshot')`,
+      [productId, sourceId],
+    )).rejects.toThrow();
+  });
+
+  it('restricts image publication to reviewers and requires a separate image-rights decision', async () => {
+    const db = await freshDatabase();
+    const { productId } = await addSyntheticPublishedProduct(db, 'whisky', 'image-review');
+    const imageSource = await db.query<{ id: string }>(
+      `insert into public.sources (source_name, source_type, canonical_url)
+       values ('TEST ONLY — packshot source', 'operator_entry', 'https://example.test/test-only-image-source')
+       returning id`,
+    );
+    const sourceId = imageSource.rows[0].id;
+    await db.query(
+      `insert into private.source_rights_reviews
+        (source_id, data_rights_status, text_rights_status, image_rights_status)
+       values ($1, 'unreviewed', 'unreviewed', 'unreviewed')`, [sourceId],
+    );
+    const image = await db.query<{ id: string }>(
+      `insert into public.product_images (product_id, source_url, source_id, alt_text)
+       values ($1, 'https://cdn.example.test/test-only-packshot.png', $2, 'TEST ONLY — Flaschenansicht')
+       returning id`, [productId, sourceId],
+    );
+
+    await db.exec('set role anon');
+    expect((await db.query('select id from public.product_images')).rows).toHaveLength(0);
+    await expect(db.query('select * from private.product_image_review_events')).rejects.toThrow();
+    await expect(db.query(
+      "select public.review_product_image($1, '{\"status\":\"approved\"}'::jsonb)", [image.rows[0].id],
+    )).rejects.toThrow();
+    await db.exec('reset role');
+
+    const analystId = '77777777-7777-4777-8777-777777777777';
+    const reviewerId = '88888888-8888-4888-8888-888888888888';
+    await db.query('insert into auth.users (id) values ($1), ($2)', [analystId, reviewerId]);
+    await db.query("insert into public.admin_members (user_id, role) values ($1, 'analyst'), ($2, 'reviewer')", [analystId, reviewerId]);
+    await db.query("select set_config('request.jwt.claim.sub', $1, false)", [analystId]);
+    await db.exec('set role authenticated');
+    await expect(db.query(
+      "select public.review_product_image($1, '{\"status\":\"approved\"}'::jsonb)", [image.rows[0].id],
+    )).rejects.toThrow(/active owner or reviewer/i);
+    await expect(db.query('select * from private.product_image_review_events')).rejects.toThrow();
+    await db.exec('reset role');
+
+    const termsUrl = 'https://example.test/image-terms';
+    const checkedAt = (await db.query<{ checked_at: string }>("select (now() - interval '1 minute')::text as checked_at")).rows[0].checked_at;
+    await db.query("select set_config('request.jwt.claim.sub', $1, false)", [reviewerId]);
+    await db.exec('set role authenticated');
+    await expect(db.query(
+      "select public.review_product_image($1, '{\"status\":\"approved\"}'::jsonb)", [image.rows[0].id],
+    )).rejects.toThrow(/image-source rights approval/i);
+    await db.query('select public.review_import_source_rights($1, $2::jsonb)', [sourceId, JSON.stringify({
+      imageRightsStatus: 'approved',
+      licenseId: 'TEST ONLY — permission recorded for this isolated test',
+      termsUrl,
+      termsCheckedAt: checkedAt,
+    })]);
+    await db.query('select public.review_product_image($1, $2::jsonb)', [image.rows[0].id, JSON.stringify({ status: 'approved', note: 'TEST ONLY — verified permission' })]);
+
+    await db.exec('reset role');
+    await db.exec('set role anon');
+    const visible = await db.query<{ source_url: string }>('select source_url from public.product_images');
+    expect(visible.rows).toEqual([{ source_url: 'https://cdn.example.test/test-only-packshot.png' }]);
+    await db.exec('reset role');
+    expect((await db.query<{ count: number }>('select count(*)::int as count from private.product_image_review_events')).rows[0].count).toBe(1);
+  });
+
+  it('stores and exposes mouthfeel only with its own current text-rights hash', async () => {
+    const db = await freshDatabase();
+    const { productId, sourceId } = await addSyntheticPublishedProduct(db, 'gin', 'mouthfeel');
+    await db.query(
+      `update private.source_rights_reviews
+       set text_rights_status = 'approved', terms_checked_at = now(), reviewed_at = now()
+       where source_id = $1`,
+      [sourceId],
+    );
+    const note = await db.query<{ id: string }>(
+      `insert into public.tasting_notes
+        (product_id, author_type, palate_text, mouthfeel_text, source_id, text_license_status, review_status, raw_content_hash)
+       values ($1, 'editorial', 'TEST ONLY — Geschmack', 'TEST ONLY — Mundgefühl', $2, 'approved', 'approved',
+         md5(concat_ws(E'\\n', '', 'editorial', '', 'TEST ONLY — Geschmack', 'TEST ONLY — Mundgefühl', '', '', ($2::uuid)::text, '', 'de')))
+       returning id`,
+      [productId, sourceId],
+    );
+
+    await db.exec('set role anon');
+    const visible = await db.query<{ mouthfeel_text: string }>('select mouthfeel_text from public.tasting_notes');
+    expect(visible.rows).toEqual([{ mouthfeel_text: 'TEST ONLY — Mundgefühl' }]);
+    await db.exec('reset role');
+
+    await expect(db.query(
+      `update public.tasting_notes set mouthfeel_text = 'TEST ONLY — geändert' where id = $1`,
+      [note.rows[0].id],
+    )).rejects.toThrow(/hash|rights/i);
   });
 
   it('requires current evidence for variants and keeps raw QR codes private', async () => {
@@ -434,6 +646,26 @@ describe('PostgreSQL migration and access policies', () => {
         issues: [{ code: 'INCOMPLETE_PROFILE', severity: 'warning' }],
       }],
     };
+    const firstImportedRecord = batch.records[0] as unknown as {
+      normalizedRecord: { product: Record<string, unknown>; tastingNotes: unknown };
+    };
+    firstImportedRecord.normalizedRecord.product.image = {
+      url: 'https://cdn.example.test/test-only-packshot.png',
+      altText: 'TEST ONLY — Flaschenansicht',
+      attribution: null,
+      source: structuredClone(source),
+    };
+    firstImportedRecord.normalizedRecord.tastingNotes = {
+      authorType: 'manufacturer',
+      authorLabel: null,
+      nose: 'TEST ONLY — Geruch',
+      palate: null,
+      mouthfeel: 'TEST ONLY — Mundgefühl',
+      finish: null,
+      overall: null,
+      language: 'de',
+      tastedAt: null,
+    };
 
     await expect(db.query('select public.stage_catalog_import($1::jsonb)', [JSON.stringify(batch)])).rejects.toThrow(/data rights are not approved/i);
     const checkedAt = (await db.query<{ checked_at: string }>("select (now() - interval '1 minute')::text as checked_at")).rows[0].checked_at;
@@ -445,7 +677,7 @@ describe('PostgreSQL migration and access policies', () => {
     await db.exec('set role authenticated');
     await db.query(
       `select public.review_import_source_rights($1, $2::jsonb)`,
-      [sourceId, JSON.stringify({ dataRightsStatus: 'approved', licenseId: 'TEST ONLY permission', termsUrl: source.termsUrl, termsCheckedAt: checkedAt, notes: 'TEST ONLY reviewer assertion' })],
+      [sourceId, JSON.stringify({ dataRightsStatus: 'approved', textRightsStatus: 'approved', licenseId: 'TEST ONLY permission', termsUrl: source.termsUrl, termsCheckedAt: checkedAt, notes: 'TEST ONLY reviewer assertion' })],
     );
     await db.exec('reset role');
     await db.query("select set_config('request.jwt.claim.sub', $1, false)", [editorId]);
@@ -454,6 +686,8 @@ describe('PostgreSQL migration and access policies', () => {
     await expect(db.query('select public.stage_catalog_import($1::jsonb)', [JSON.stringify(batch)]))
       .rejects.toThrow(/snapshot differs from registered and reviewed source metadata/i);
     batch.records.forEach((record) => { record.source.licenseId = 'TEST ONLY permission'; });
+    const imageCandidateValue = firstImportedRecord.normalizedRecord.product.image as { source: { licenseId: string } };
+    imageCandidateValue.source.licenseId = 'TEST ONLY permission';
     const first = await db.query<{ result: { jobId: string; idempotentReplay: boolean } }>(
       'select public.stage_catalog_import($1::jsonb) as result',
       [JSON.stringify(batch)],
@@ -465,6 +699,22 @@ describe('PostgreSQL migration and access policies', () => {
     expect(first.rows[0].result.idempotentReplay).toBe(false);
     expect(second.rows[0].result.idempotentReplay).toBe(true);
     expect(second.rows[0].result.jobId).toBe(first.rows[0].result.jobId);
+
+    await db.exec('reset role');
+    const registeredMetadata = await db.query<{ source_name: string; source_type: string; canonical_url: string; attribution_text: string | null; terms_url: string | null; license_id: string | null }>(
+      `select s.source_name, s.source_type::text, s.canonical_url, s.attribution_text, r.terms_url, r.license_id
+       from public.sources s join private.source_rights_reviews r on r.source_id = s.id where s.id = $1`, [sourceId],
+    );
+    expect(registeredMetadata.rows[0]).toMatchObject({
+      source_name: source.name, source_type: source.type, canonical_url: source.url,
+      attribution_text: source.attribution, terms_url: source.termsUrl, license_id: 'TEST ONLY permission',
+    });
+    const storedImageSource = await db.query<{ source_snapshot: unknown }>(
+      `select normalized_record #> '{product,image,source}' as source_snapshot from private.import_records where source_id = $1 order by row_number limit 1`, [sourceId],
+    );
+    expect(storedImageSource.rows[0].source_snapshot).toEqual({ ...source, licenseId: 'TEST ONLY permission' });
+    await db.query("select set_config('request.jwt.claim.sub', $1, false)", [editorId]);
+    await db.exec('set role authenticated');
 
     const applied = await db.query<{ result: { processedCount: number; outcomes: Array<{ status: string; productId: string; variantId: string }> } }>(
       'select public.upsert_catalog_import_job($1, 5000) as result', [first.rows[0].result.jobId],
@@ -493,6 +743,16 @@ describe('PostgreSQL migration and access policies', () => {
     expect((await db.query<{ count: number }>("select count(*)::int as count from public.brands where status = 'draft' and verified_at is null")).rows[0].count).toBe(1);
     expect((await db.query<{ volume_ml: number }>('select volume_ml from public.product_variants order by volume_ml')).rows.map((row) => row.volume_ml)).toEqual([700, 1000]);
     expect((await db.query<{ count: number }>("select count(*)::int as count from public.variant_field_provenance where field_path = 'volume_ml' and verification_status = 'pending'")).rows[0].count).toBe(2);
+    const importedImage = await db.query<{ image_license_status: string; review_status: string; raw_image_hash: string | null }>(
+      'select image_license_status,review_status,raw_image_hash from public.product_images',
+    );
+    expect(importedImage.rows).toEqual([{ image_license_status: 'unreviewed', review_status: 'pending', raw_image_hash: null }]);
+    expect((await db.query<{ mouthfeel_text: string; mouthfeel_hash: string | null }>(
+      'select mouthfeel_text,mouthfeel_hash from public.tasting_notes',
+    )).rows).toEqual([{ mouthfeel_text: 'TEST ONLY — Mundgefühl', mouthfeel_hash: expect.stringMatching(/^[a-f0-9]{32}$/) }]);
+    expect((await db.query<{ image_rights_status: string }>(
+      'select image_rights_status from private.source_rights_reviews where source_id = $1', [sourceId],
+    )).rows[0].image_rights_status).toBe('unreviewed');
   });
 
   it('requires separate tasting-text rights and prevents editors from approving source rights', async () => {

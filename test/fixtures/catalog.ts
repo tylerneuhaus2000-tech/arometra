@@ -42,8 +42,11 @@ function createFixture(
       verifiedAt: null,
       dataOrigin: 'synthetic',
     })),
+    sensoryProfile: [],
+    sensoryTags: [],
     variants: [],
     tastingNotes: [],
+    communityReviews: [],
     sources: [],
     dataOrigin: 'synthetic',
   };

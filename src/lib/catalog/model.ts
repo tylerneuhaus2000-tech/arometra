@@ -1,4 +1,4 @@
-export type DataMode = 'fixtures' | 'supabase' | 'unconfigured';
+export type DataMode = 'fixtures' | 'supabase' | 'local-start-database' | 'unconfigured';
 export type ResultStatus = 'ready' | 'unconfigured' | 'error';
 
 export type CatalogCategory = {
@@ -47,6 +47,7 @@ export type TastingNote = {
   authorType: 'manufacturer' | 'expert' | 'editorial' | 'consumer';
   nose: string | null;
   palate: string | null;
+  mouthfeel: string | null;
   finish: string | null;
   overall: string | null;
   sourceName: string;
@@ -54,6 +55,63 @@ export type TastingNote = {
   attribution: string | null;
   language: string;
   tastedAt: string | null;
+};
+
+export type ProductSensoryDescriptor = {
+  code: string;
+  label: string;
+  evidenceType: 'expert' | 'editorial' | 'manufacturer' | 'community_aggregated';
+  stage: 'unspecified' | 'nose' | 'palate' | 'finish';
+  sourceName: string;
+  sourceUrl: string | null;
+  verifiedAt: string | null;
+};
+
+export type ProductSensoryDimension = {
+  code: string;
+  label: string;
+  semanticFamily: string;
+  displayOrder: number;
+  descriptors: ProductSensoryDescriptor[];
+  intensity: number | null;
+  measurementMethod: string | null;
+  measurementEvidenceType: 'expert' | 'editorial' | 'manufacturer' | 'community_aggregated' | null;
+  measurementSourceName: string | null;
+  measurementSourceUrl: string | null;
+  measurementVerifiedAt: string | null;
+};
+
+export type ProductSensoryTag = {
+  code: string;
+  label: string;
+  evidenceType: 'expert' | 'editorial' | 'manufacturer' | 'community_aggregated';
+  categoryId: string;
+  sourceName: string;
+  sourceUrl: string | null;
+};
+
+export type CommunityReview = {
+  id: string;
+  displayName: string | null;
+  rating: number;
+  nose: string | null;
+  palate: string | null;
+  finish: string | null;
+  overall: string | null;
+  verifiedPurchase: boolean;
+  createdAt: string;
+};
+
+export type ProductImage = {
+  id?: string;
+  src: string;
+  altText: string;
+  sourceName: string;
+  sourceUrl: string;
+  sourcePageUrl: string | null;
+  attribution: string | null;
+  rightsStatus: 'approved' | 'unverified';
+  localOnly: boolean;
 };
 
 export type CatalogProduct = {
@@ -72,11 +130,16 @@ export type CatalogProduct = {
   maturationDetails: string | null;
   abvPercent: number | null;
   description: string | null;
+  image?: ProductImage | null;
   flavors: ProductFlavorValue[];
+  sensoryProfile: ProductSensoryDimension[];
+  sensoryTags: ProductSensoryTag[];
+  qualitativeFlavors?: Array<{ code: string; label: string }>;
   variants: CatalogVariant[];
   tastingNotes: TastingNote[];
+  communityReviews: CommunityReview[];
   sources: ProductSource[];
-  dataOrigin: 'verified' | 'synthetic';
+  dataOrigin: 'verified' | 'synthetic' | 'unreviewed';
 };
 
 export type CatalogQuery = {

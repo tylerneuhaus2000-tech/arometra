@@ -17,7 +17,9 @@ export default async function HomePage() {
         <header className="page-heading">
           <p className="eyebrow">Produktwissen mit Herkunft</p>
           <h1>Entdecke besondere Spirituosen</h1>
-          <p>Finde Produkte, ihre belegten Angaben und nachvollziehbare Alternativen.</p>
+          <p>{catalog.mode === 'local-start-database'
+            ? 'Sieh dir die bereitgestellten Testdatensätze mit Quellen und vorläufigen Merkmalen an.'
+            : 'Finde Produkte, ihre belegten Angaben und nachvollziehbare Alternativen.'}</p>
         </header>
 
         {catalog.status === 'error' ? (
@@ -29,7 +31,9 @@ export default async function HomePage() {
         ) : (
           <>
             <div className="results-heading" aria-live="polite">
-              <p>{catalog.total} {catalog.mode === 'fixtures' ? 'synthetische Testprofile' : 'freigegebene Produkte'}</p>
+              <p>{catalog.total} {catalog.mode === 'fixtures'
+                ? 'synthetische Testprofile'
+                : catalog.mode === 'local-start-database' ? 'Produkte in der lokalen Testdatenbank' : 'freigegebene Produkte'}</p>
               <Link href="/entdecken">Alle Spirituosen <span aria-hidden="true">→</span></Link>
             </div>
             <div className="product-grid">

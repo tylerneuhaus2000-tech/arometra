@@ -29,6 +29,13 @@ const sourceSchema = z.object({
   attribution: nullableText(1000),
 });
 
+const productImageSchema = z.object({
+  url: httpsUrl.refine((value) => !new URL(value).hash, 'IMAGE_URL_FRAGMENT_NOT_ALLOWED'),
+  altText: shortText(500),
+  attribution: nullableText(1000),
+  source: sourceSchema,
+}).strict();
+
 const productSchema = z.object({
   name: shortText(240),
   categorySlug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -37,6 +44,7 @@ const productSchema = z.object({
   originRegion: nullableText(160),
   ageYears: numericValue.nonnegative().nullable().optional(),
   abvPercent: numericValue.min(0).max(100).nullable().optional(),
+  image: productImageSchema.optional(),
 });
 
 const variantSchema = z.object({
@@ -59,11 +67,17 @@ const tastingNotesSchema = z.object({
   authorLabel: nullableText(160),
   nose: nullableText(5_000),
   palate: nullableText(5_000),
+  mouthfeel: nullableText(5_000),
   finish: nullableText(5_000),
   overall: nullableText(5_000),
   language: z.string().trim().regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/).optional(),
   tastedAt: z.string().date().nullable().optional(),
 }).refine((value) => Boolean(value.nose || value.palate || value.finish || value.overall), 'TASTING_NOTE_EMPTY');
+
+const sensoryDescriptorSchema = z.object({
+  tagCode: z.string().trim().regex(/^[a-z][a-z0-9_]*$/),
+  stage: z.enum(['unspecified', 'nose', 'palate', 'finish']).default('unspecified'),
+}).strict();
 
 export const importRecordSchema = z.object({
   sourceRecordId: z.string().trim().min(1).max(240).nullable().optional(),
@@ -76,6 +90,7 @@ export const importRecordSchema = z.object({
   product: productSchema,
   variant: variantSchema.optional().default({}),
   flavors: z.array(flavorSchema).max(24).optional().default([]),
+  sensoryDescriptors: z.array(sensoryDescriptorSchema).max(48).optional().default([]),
   tastingNotes: tastingNotesSchema.optional(),
 }).strict();
 
@@ -117,7 +132,10 @@ const csvColumns = [
   'product_family', 'origin_country_code', 'origin_region', 'age_years', 'abv_percent', 'variant_gtin',
   'variant_volume_ml', 'variant_market_country_code', 'variant_abv_percent_override', 'variant_edition_label',
   'variant_code', 'flavors_json', 'tasting_author_type', 'tasting_author_label', 'tasting_nose', 'tasting_palate',
-  'tasting_finish', 'tasting_overall', 'tasting_language', 'tasting_date',
+  'tasting_mouthfeel', 'tasting_finish', 'tasting_overall', 'tasting_language', 'tasting_date',
+  'product_image_url', 'product_image_alt_text', 'product_image_attribution', 'product_image_source_name',
+  'product_image_source_type', 'product_image_source_url', 'product_image_source_terms_url',
+  'product_image_source_license_id', 'product_image_source_attribution',
 ] as const;
 
 function parseCsvRows(input: string): string[][] {
@@ -201,7 +219,7 @@ function csvRecord(headers: string[], values: string[]): unknown {
     }
   }
   const authorType = csvOptional(record.tasting_author_type);
-  const hasTastingContent = ['tasting_author_label', 'tasting_nose', 'tasting_palate', 'tasting_finish', 'tasting_overall']
+  const hasTastingContent = ['tasting_author_label', 'tasting_nose', 'tasting_palate', 'tasting_mouthfeel', 'tasting_finish', 'tasting_overall']
     .some((column) => Boolean(csvOptional(record[column as keyof typeof record])));
   const tastingNotes = authorType || hasTastingContent
     ? {
@@ -209,12 +227,31 @@ function csvRecord(headers: string[], values: string[]): unknown {
         authorLabel: csvOptional(record.tasting_author_label),
         nose: csvOptional(record.tasting_nose),
         palate: csvOptional(record.tasting_palate),
+        mouthfeel: csvOptional(record.tasting_mouthfeel),
         finish: csvOptional(record.tasting_finish),
         overall: csvOptional(record.tasting_overall),
         language: csvOptional(record.tasting_language),
         tastedAt: csvOptional(record.tasting_date),
       }
     : undefined;
+  const hasProductImage = [
+    'product_image_url', 'product_image_alt_text', 'product_image_attribution', 'product_image_source_name',
+    'product_image_source_type', 'product_image_source_url', 'product_image_source_terms_url',
+    'product_image_source_license_id', 'product_image_source_attribution',
+  ].some((column) => Boolean(csvOptional(record[column as keyof typeof record])));
+  const image = hasProductImage ? {
+    url: csvOptional(record.product_image_url),
+    altText: csvOptional(record.product_image_alt_text),
+    attribution: csvOptional(record.product_image_attribution),
+    source: {
+      name: csvOptional(record.product_image_source_name),
+      type: csvOptional(record.product_image_source_type),
+      url: csvOptional(record.product_image_source_url),
+      termsUrl: csvOptional(record.product_image_source_terms_url),
+      licenseId: csvOptional(record.product_image_source_license_id),
+      attribution: csvOptional(record.product_image_source_attribution),
+    },
+  } : undefined;
 
   return {
     sourceRecordId: csvOptional(record.source_record_id),
@@ -236,6 +273,7 @@ function csvRecord(headers: string[], values: string[]): unknown {
       originRegion: csvOptional(record.origin_region),
       ageYears: csvNumber(record.age_years),
       abvPercent: csvNumber(record.abv_percent),
+      image,
     },
     variant: {
       gtin: csvOptional(record.variant_gtin),
@@ -331,6 +369,19 @@ function normalizedRecordValue(record: CatalogImportRecord): Record<string, unkn
       originRegion: record.product.originRegion ? cleanText(record.product.originRegion) : null,
       ageYears: record.product.ageYears ?? null,
       abvPercent: record.product.abvPercent ?? null,
+      image: record.product.image ? {
+        url: record.product.image.url,
+        altText: cleanText(record.product.image.altText),
+        attribution: record.product.image.attribution ? cleanText(record.product.image.attribution) : null,
+        source: {
+          name: cleanText(record.product.image.source.name),
+          type: record.product.image.source.type,
+          url: new URL(record.product.image.source.url).toString(),
+          termsUrl: record.product.image.source.termsUrl ?? null,
+          licenseId: record.product.image.source.licenseId ?? null,
+          attribution: record.product.image.source.attribution ? cleanText(record.product.image.source.attribution) : null,
+        },
+      } : null,
     },
     variant: {
       gtin,
@@ -341,12 +392,16 @@ function normalizedRecordValue(record: CatalogImportRecord): Record<string, unkn
       variantCode: record.variant.variantCode ? cleanText(record.variant.variantCode) : null,
     },
     flavors: record.flavors.map((flavor) => ({ code: flavor.code.toLowerCase(), value: flavor.value, method: flavor.method })),
+    sensoryDescriptors: record.sensoryDescriptors.map((descriptor) => ({
+      tagCode: descriptor.tagCode.toLowerCase(), stage: descriptor.stage,
+    })),
     tastingNotes: record.tastingNotes
       ? {
           authorType: record.tastingNotes.authorType,
           authorLabel: record.tastingNotes.authorLabel ? cleanText(record.tastingNotes.authorLabel) : null,
           nose: record.tastingNotes.nose ? cleanText(record.tastingNotes.nose) : null,
           palate: record.tastingNotes.palate ? cleanText(record.tastingNotes.palate) : null,
+          mouthfeel: record.tastingNotes.mouthfeel ? cleanText(record.tastingNotes.mouthfeel) : null,
           finish: record.tastingNotes.finish ? cleanText(record.tastingNotes.finish) : null,
           overall: record.tastingNotes.overall ? cleanText(record.tastingNotes.overall) : null,
           language: record.tastingNotes.language ?? 'de',
@@ -414,7 +469,7 @@ export function buildImportReport(values: unknown[], firstRowNumber = 1): Import
     if (!record.product.originCountryCode) missing.push('product.originCountryCode');
     if (record.product.abvPercent == null && record.variant.abvPercentOverride == null) missing.push('abvPercent');
     if (record.variant.volumeMl == null) missing.push('variant.volumeMl');
-    if (record.flavors.length === 0 && !record.tastingNotes) missing.push('sensoryData');
+    if (record.flavors.length === 0 && record.sensoryDescriptors.length === 0 && !record.tastingNotes) missing.push('sensoryData');
     if (missing.length) issues.push({ code: 'INCOMPLETE_PROFILE', message: `Nicht belegt: ${missing.join(', ')}.`, severity: 'warning' });
 
     const quality = issues.some((issue) => issue.severity === 'error') ? 'invalid' : missing.length ? 'incomplete' : 'complete';

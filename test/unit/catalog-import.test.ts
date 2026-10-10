@@ -60,6 +60,58 @@ describe('catalog import validation and normalization', () => {
     expect(report.rows[0].issues.some((issue) => issue.message.includes('tastingNotes.authorType'))).toBe(true);
   });
 
+  it('normalizes separate image sources and mouthfeel from JSON and CSV without approving image rights', async () => {
+    const fixture = JSON.parse(await readFile(fixturePath, 'utf8')) as CatalogImportRecord[];
+    const candidate = structuredClone(fixture[0]);
+    candidate.product.image = {
+      url: 'https://cdn.example.test/test-only-packshot.png?width=900',
+      altText: 'TEST ONLY — Frontansicht der Flasche',
+      attribution: null,
+      source: {
+        name: 'TEST ONLY — image source',
+        type: 'operator_entry',
+        url: 'https://example.test/image-record',
+        termsUrl: null,
+        licenseId: null,
+        attribution: null,
+      },
+    };
+    candidate.tastingNotes = {
+      authorType: 'manufacturer',
+      authorLabel: null,
+      nose: 'TEST ONLY — Geruch',
+      palate: null,
+      mouthfeel: 'TEST ONLY — Mundgefühl',
+      finish: null,
+      overall: null,
+      language: 'de',
+      tastedAt: null,
+    };
+    const report = buildImportReport([candidate]);
+    const batch = buildStagePayload(report, createInputDigest('test-only-image-and-mouthfeel'));
+    const first = (batch.records as Array<{ normalizedRecord: { product: { image: unknown }; tastingNotes: { mouthfeel: string } } }>)[0];
+
+    expect(report.counts.invalid).toBe(0);
+    expect(first.normalizedRecord.product.image).toMatchObject({ url: candidate.product.image.url, source: { url: 'https://example.test/image-record' } });
+    expect(first.normalizedRecord.tastingNotes.mouthfeel).toBe('TEST ONLY — Mundgefühl');
+
+    const csv = [
+      'source_name,source_type,source_url,retrieved_at,brand_name,product_name,category_slug,tasting_author_type,tasting_nose,tasting_mouthfeel,product_image_url,product_image_alt_text,product_image_source_name,product_image_source_type,product_image_source_url',
+      'TEST ONLY,operator_entry,https://example.test/product,2026-10-10T10:00:00Z,TEST ONLY brand,TEST ONLY product,whisky,manufacturer,TEST ONLY nose,TEST ONLY mouthfeel,https://cdn.example.test/test-only.png,TEST ONLY bottle,TEST ONLY image source,operator_entry,https://example.test/image-record',
+    ].join('\n');
+    const csvReport = buildImportReport(parseCatalogImport(csv, '.csv'), 2);
+    expect(csvReport.counts.invalid).toBe(0);
+    expect(csvReport.rows[0].record?.tastingNotes?.mouthfeel).toBe('TEST ONLY mouthfeel');
+    expect(csvReport.rows[0].record?.product.image?.source.name).toBe('TEST ONLY image source');
+    expect(csvReport.rows[0].record?.product.image?.url).toContain('cdn.example.test');
+
+    const unsafe = structuredClone(candidate);
+    const candidateImage = unsafe.product.image;
+    if (!candidateImage) throw new Error('Test fixture image was not created');
+    unsafe.product.image = { ...candidateImage, url: 'http://cdn.example.test/not-secure.png' };
+    expect(buildImportReport([unsafe]).counts.invalid).toBe(1);
+  });
+
   it('rejects duplicate CSV headers and unsupported file types', () => {
     expect(() => parseCatalogImport('source_name,source_name\nA,B', '.csv')).toThrow('CSV_HEADER_MISSING_OR_DUPLICATE');
     expect(() => parseCatalogImport('[]', '.xml')).toThrow('UNSUPPORTED_IMPORT_FORMAT');
