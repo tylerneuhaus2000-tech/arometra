@@ -4,6 +4,20 @@ Audit date: 2026-10-10
 
 No credential values are recorded in this document.
 
+## Latest live integration update — 2026-10-10
+
+- The local `.env.local` now has the supplied project URL, publishable key, explicit development target, matching project reference, and `AROMETRA_DATA_MODE=supabase`. It remains ignored by Git; no credential values are recorded here.
+- The Supabase CLI is authenticated and linked to the confirmed development project. Read-only inspection found no existing base tables, views, materialized views, sequences, or foreign tables in `public`/`private` before migration.
+- `supabase migration list --linked` showed all four local migrations as pending. `supabase db push --dry-run` listed exactly those four migrations and no seeds. After review, `supabase db push` applied them successfully. A subsequent migration list confirmed all four versions remotely.
+- The migrations create schema and security objects; no `DROP TABLE`, `DROP SCHEMA`, `TRUNCATE`, or direct data-deletion statements were found. One constraint is replaced on a table created by the immediately preceding migration. No seed or product import was run.
+- Remote read-only count query returned `0` categories and `0` products. The database is connected but has no catalog records yet.
+- Live PostgREST reads returned HTTP 200 for categories, products, brands, variants, flavor values, tasting notes, and community reviews. Auth health/settings returned HTTP 200. Anonymous `admin_members` read returned HTTP 401; the `private` import schema returned HTTP 406.
+- A direct catalog query initially selected a nonexistent `id` field from `product_flavor_values`; the table uses a composite key. The live check now selects `product_id`, and the anonymous read returns HTTP 200. `scripts/test-supabase-integration.ts` was corrected to use valid per-table columns.
+- A read-only catalog smoke check against the Next.js dev server in Supabase mode returned HTTP 200 for `/` and `/entdecken`, with no synthetic-preview labels. No actual product exists for a complete product/QR journey.
+- Catalog table RLS is enabled on all 22 public/private base tables. HTTP checks verified anonymous public reads, denial of anonymous `admin_members`, and non-exposure of the private import schema. Authenticated role checks remain blocked until two short-lived test-user JWTs are configured; no authenticated RLS result is claimed.
+- Read-only count query returned `0` rows in `admin_members` and `community_reviews`; no owner/editor test membership or community review exists. A trusted initial test-admin membership must be established before the positive admin-RPC permission probe can pass.
+- `npm run lint`, `npm run typecheck`, and `npm test` passed after the integration-check correction (42 files linted; 41 unit tests). `npm run test:integration:supabase` safely exits `BLOCKED` before network calls because the separate non-admin and owner/editor JWTs are absent.
+
 ## Configuration audit
 
 The expected project-root `.env.local` was absent during this audit. The following names were not available either in that file or in the process environment: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `AROMETRA_SUPABASE_TARGET`, `AROMETRA_DEVELOPMENT_PROJECT_REF`, `SUPABASE_INTEGRATION_NON_ADMIN_ACCESS_TOKEN`, and `SUPABASE_INTEGRATION_ADMIN_ACCESS_TOKEN`. No Supabase URL or key was emitted to logs.
@@ -31,7 +45,7 @@ Static review found no `DROP TABLE`, `TRUNCATE`, or direct `DELETE` statements. 
 
 A production build with `AROMETRA_DATA_MODE=supabase` and no connection settings was started locally. The home route returned the unconfigured/invalid configuration message and did not render synthetic fixture products. This confirms fail-closed rendering, not a Supabase connection.
 
-## Required next steps
+## Required next steps at initial audit (superseded in part by the live update)
 
 1. Put the real settings in `/Users/tylerneuhaus/Desktop/AROMETRA/.env.local` locally, without posting them in chat or committing them. Include the project URL, publishable key, `AROMETRA_DATA_MODE=supabase`, development target, and matching development project reference.
 2. Provide separate short-lived integration JWTs for a non-admin authenticated user and an owner/editor user before running live Auth/PostgREST/RLS checks. The import CLI needs a separately authorized short-lived import token if staging is to be exercised.

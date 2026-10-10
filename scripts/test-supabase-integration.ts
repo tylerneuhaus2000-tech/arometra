@@ -80,8 +80,16 @@ async function run(): Promise<void> {
     checks.push(`${label} Auth session validated: 200`);
   }
 
-  for (const table of ['categories', 'products', 'brands', 'product_variants', 'product_flavor_values', 'tasting_notes', 'community_reviews']) {
-    const response = await request(config.baseUrl, config.publishableKey, anonymousBearer, `/rest/v1/${table}?select=id&limit=1`);
+  for (const [table, fields] of [
+    ['categories', 'id'],
+    ['products', 'id'],
+    ['brands', 'id'],
+    ['product_variants', 'id'],
+    ['product_flavor_values', 'product_id'],
+    ['tasting_notes', 'id'],
+    ['community_reviews', 'id'],
+  ] as const) {
+    const response = await request(config.baseUrl, config.publishableKey, anonymousBearer, `/rest/v1/${table}?select=${fields}&limit=1`);
     await expectStatus(response, [200], `anonymous ${table} public read`);
     checks.push(`anonymous ${table} read: 200`);
   }

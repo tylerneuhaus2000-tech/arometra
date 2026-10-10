@@ -171,3 +171,14 @@ Commitstatus: lokaler Commit auf `main` nach Abschluss der hier dokumentierten G
 - `supabase migration list --linked` — `ProjectRefNotLinkedError`. Lokale CLI 2.120.0 ist installiert, aber es existiert kein verbundenes Hosted-Projekt. Die vier lokalen Migrationen sind im PGlite-Testlauf geprüft. Ein Remote-Pending-Set lässt sich nicht bestimmen.
 - Migrationen statisch geprüft: keine direkten `DROP TABLE`, `TRUNCATE` oder `DELETE`-Statements; Migration 2 ersetzt eine Provenienz-Constraint. Es wurde kein Remote-Link, Dry-Run, Seed, Reset oder Schreibzugriff ausgeführt. Der vorhandene Remote-Schema-/Datenzustand bleibt unbekannt.
 - Detaillierter Status und notwendige Zugangsdaten: `docs/SUPABASE_INTEGRATION_STATUS.md`.
+
+## 2026-10-10 — Live Supabase-Verbindung und Migrationen
+
+- `.env.local` wurde lokal mit Projekt-URL, Publishable Key, Entwicklungsziel, passender Projekt-Referenz und `AROMETRA_DATA_MODE=supabase` konfiguriert. Datei bleibt ignoriert und wurde nicht committed.
+- Supabase CLI login/link für das bestätigte Entwicklungsprojekt erfolgreich. Remote-Migrationsliste zeigte vier lokale Migrationen pending; `db push --dry-run` listete dieselben vier und keine Seeds. Nach read-only Prüfung, dass keine bestehenden Tabellen/Views/Sequenzen in `public` oder `private` vorhanden waren, `npx supabase db push` erfolgreich ausgeführt. Alle vier Versionen sind in der Remote-Historie bestätigt.
+- Vorherige Risikoanalyse: keine Tabellen-/Schema-Drops, Truncates oder direkten Datenlöschungen. Eine Constraint-Ersetzung betrifft eine unmittelbar zuvor angelegte Tabelle. Es wurden keine Seeddaten oder Produkte importiert.
+- Remote DB liefert `0` Kategorien und `0` Produkte. PostgREST GETs für die öffentlichen Katalogtabellen liefern HTTP 200. Auth health/settings liefern HTTP 200. Anonymer `admin_members`-Zugriff wird mit HTTP 401 verweigert; Zugriff auf das private Importschema antwortet HTTP 406. RLS ist laut `pg_class.relrowsecurity` für alle 22 public/private Basistabellen aktiviert.
+- Read-only Zählung: `admin_members=0`, `community_reviews=0`; noch kein initialer Test-Owner/Editor zugewiesen.
+- Produkt-Flavors-Abfrage korrigiert: `product_flavor_values` hat keinen `id`-Schlüssel, sondern zusammengesetzten Schlüssel; gültiger anonymer Read über `product_id` liefert HTTP 200. Der Live-Integrationstest verwendet jetzt je Tabelle eine existierende Spalte.
+- Next.js-Smoke-Test mit `.env.local`/Supabase-Modus: `/` und `/entdecken` HTTP 200, keine synthetischen Preview-Bezeichnungen. Mangels Datensätzen sind Produktdetail, Suche, QR und Empfehlungen noch kein realer Datenablauf.
+- Nach Korrektur: `npm run lint` (42 Dateien), `npm run typecheck` und `npm test` (6 Dateien/41 Tests) erfolgreich. `npm run test:integration:supabase` bleibt sicher `BLOCKED` vor Netzwerkzugriff, da getrennte kurzlebige Nicht-Admin- und Owner/Editor-Test-JWTs fehlen. Authentifizierte RLS- und Admin-RPC-Ergebnisse sind damit noch nicht verifiziert.
