@@ -1,0 +1,33 @@
+[
+  {
+    "sourceRecordId": "fixture-record-001",
+    "source": {
+      "name": "TEST ONLY — source",
+      "type": "operator_entry",
+      "url": "https://example.test/catalog/fixture-record-001",
+      "termsUrl": null,
+      "licenseId": null,
+      "attribution": "TEST ONLY — synthetic import metadata"
+    },
+    "retrievedAt": "2026-10-10T10:00:00Z",
+    "brand": { "name": "TEST ONLY — brand", "countryCode": null },
+    "product": {
+      "name": "TEST ONLY — product",
+      "categorySlug": "whisky",
+      "family": null,
+      "originCountryCode": null,
+      "originRegion": null,
+      "ageYears": null,
+      "abvPercent": null
+    },
+    "variant": {
+      "gtin": null,
+      "volumeMl": null,
+      "marketCountryCode": null,
+      "abvPercentOverride": null,
+      "editionLabel": null,
+      "variantCode": null
+    },
+    "flavors": []
+  }
+]

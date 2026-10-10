@@ -57,3 +57,42 @@ Commitstatus: lokaler Commit auf `main` nach Abschluss der hier dokumentierten G
 - Supabase-Projekt, URL/Key, konkrete Produktquellen, lizenzierte Bilder und reale Spirituosendatensätze fehlen weiterhin. Seed enthält nur Kategorien und sensorische Taxonomie; es gibt 0 echte Produkt- und Quellenzeilen.
 - E2E nutzt synthetische Prüfprofile aus `test/fixtures/`; die Produktionssperre wurde separat geprüft. Es wurden keine Marken, Produktmerkmale, Verkostungstexte, Bewertungen, GTINs, Preise oder Verkaufszahlen erfunden.
 - GitHub Actions wurde konfiguriert, aber mangels Remote nicht ausgeführt. Es gibt keinen Remote und keinen Push.
+
+## 2026-10-10 — Sprint 2: Real Database & Catalog Foundation
+
+### Auditbasis und externe Zugänge
+
+- Ausgangscommit/Branch: `35b4345` auf `main`; Working Tree zu Beginn sauber, kein Git-Remote oder Upstream.
+- Node.js 26.4.0, npm 11.17.0, Supabase CLI 2.120.0. Docker/Podman und `psql` fehlen.
+- Umgebungsvariablen wurden ohne Ausgabe ihrer Inhalte auf Supabase-URL, Publishable-Key und Test-JWT geprüft: nicht konfiguriert. Es wurde keine Remote-Migration ausgeführt.
+- `gh auth status` zeigte ein aktives Konto; `gh repo view arometra` fand unter diesem Konto kein Repository. Es wurde kein Repository angelegt, kein Remote gesetzt und nichts gepusht.
+
+### Tatsächlich ausgeführt
+
+- `npm test` — 5 Testdateien, 36 Tests bestanden. PGlite führte alle versionierten Migrationen in einer isolierten PostgreSQL-Instanz aus. Geprüft wurden bestehende Katalog-/QR-/Provenienzregeln, Suchlimits und Literal-Wildcards, inaktive Kategorien, Importquellen-Rechte, private Staging-RLS, anonym/nicht-admin verweigerte RPCs, Rollen-Trennung für Rechteprüfungen, idempotentes Staging und Draft-Upsert ohne Veröffentlichung. Zwei verschieden große `TEST ONLY`-Varianten bleiben getrennt; anonyme Rollen sehen die Drafts nicht. Community-Testdaten sind ausdrücklich `TEST ONLY`, pending, danach nur mit Einwilligung und Moderation öffentlich lesbar.
+- `npm run lint` — Biome prüfte `src`, `test` und `scripts` ohne Befund.
+- `npm run typecheck` — erfolgreich (`tsc --noEmit`).
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:e2e` — 4/4 Flows bestanden. Die erste Ausführung traf einen bereits laufenden Dev-Server auf Port 3000; Playwright startet jetzt isoliert auf einem eigenen Port und Next-Ausgabeordner. Die erfolgreiche Wiederholung deckte Home/Discovery, Detail/Empfehlung, QR und Mobilansicht ab.
+- `AROMETRA_NEXT_DIST_DIR=.next-build npm run build` — Next.js 16.4.0 Produktionsbuild erfolgreich; `/`, `/entdecken`, `/p/[slug]` und `/q/[code]` erzeugt. Von Next generierte Änderungen an `next-env.d.ts` und `tsconfig.json` wurden danach auf den Repository-Stand zurückgesetzt.
+- Produktionsserver mit ausdrücklich gesetztem Fixture-Modus auf isoliertem Build gestartet und per HTTP angefragt — `HTTP 200`, Sperrhinweis „Synthetische Testdaten sind in der Produktionsumgebung gesperrt“ vorhanden, synthetisches Prüfprodukt im HTML nicht vorhanden.
+- `npm run import:dry-run -- --file test/fixtures/catalog-import.json` — ein ausdrücklich markierter Fixture-Kandidat, `incomplete=1`, `invalid=0`; es wurden keine Rohfakten ausgegeben.
+- `npm run test:integration:supabase` — `BLOCKED`, Exit-Code 1 mit sicherem Konfigurationshinweis. URL, sicherer Publishable Key und kurzlebiger nicht-administrativer JWT fehlen. Deshalb gab es keine echten PostgREST-/Supabase-API- oder Live-RLS-Ergebnisse.
+- `npm audit --audit-level=high` — 0 Schwachstellen. Prüfung des Worktrees auf JWT-/`sb_secret_`-artige feste Zugangswerte — keine Treffer. Geänderte Dateien bestehen `git diff --check`.
+
+### Daten- und Integrationsstatus
+
+- Reale verifizierte Produktdatensätze im Katalog/Seed/Importbestand: **0**. Für AROMETRA freigegebene Datenquellen: **0**. Der PGlite-Testbestand enthält nur klar markierte synthetische Werte und wird verworfen.
+- Teacher's Highland Cream wurde als zu bearbeitende Produktidentität berücksichtigt. Ein verifizierter Hersteller-GTIN erscheint nur als checksum-only Unit-Testvektor mit offiziellem Herstellerlink; es gibt keine Produktzuordnung oder Datenbankzeile dafür.
+- Open Food Facts wurde nicht abgefragt/importiert; die offizielle Dokumentation weist auf ODbL/Datenlizenz-, Attribution- und Share-Alike-Bedingungen hin. Herstellerseiten von Suntory/Teacher's sind Recherchequellen, aber die geprüften Nutzungsbedingungen belegen keine AROMETRA-Datenlizenz. Details und Abruflinks: `docs/SPRINT_2_SOURCE_AUDIT.md`.
+- Supabase ist lokal auf Schema-/SQL-Ebene in PGlite geprüft, aber live `BLOCKED`. Es gibt kein bestätigtes Entwicklungsprojekt oder echte API-Integrationsergebnisse.
+- `.github/workflows/ci.yml` ist lokal konfiguriert (Lint, Typecheck, Vitest, Import-Dry-Run, E2E, Produktionsbuild, Audit). GitHub Actions lief mangels bestätigtem Repository nicht.
+
+### Re-Audit vor dem Sprint-2-Commit am 2026-10-10
+
+- Secret-Musterprüfung über 75 getrackte und nicht ignorierte Dateien: keine Treffer; `.env.local` fehlt. `gitleaks`/`trufflehog` sind in der Umgebung nicht installiert. Die Prüfung gibt keine möglichen Geheimniswerte aus.
+- `npm run lint` und `npm run typecheck` — erfolgreich; `npm test` — 5 Dateien, 36 Tests bestanden, einschließlich der SQL-Sperre gegen abweichende Lizenz-/Terms-Metadaten im Quellen-Snapshot.
+- `AROMETRA_NEXT_DIST_DIR=.next-build npm run build` — erfolgreich. Next.js änderte generierte Pfade in `next-env.d.ts` und `tsconfig.json`; diese Build-/Dev-Artefakte wurden auf den eingecheckten Stand zurückgesetzt.
+- E2E: erster Gesamtlauf nach dem Build 3/4, ein Produktprofil-Klick navigierte nicht. Der fokussierte Flow bestand nach Bereinigung generierter Next-Dateien; der erneute vollständige Lauf bestand mit 4/4 (Home/Accessibility, Produktsuche/Steckbrief/Empfehlung, QR, Mobilansicht). Der einzelne Erstfehler ist damit als transient dokumentiert, nicht als bestanden gezählt.
+- `npm audit --audit-level=high` — 0 Schwachstellen; `git diff --check` — erfolgreich.
+- `npm run test:integration:supabase` — `BLOCKED`, weil Entwicklungsprojekt-URL, Publishable Key sowie getrennte kurzlebige Nicht-Admin- und Owner/Editor-JWTs fehlen. Keine Live-API-Anfrage und keine Remote-Migration.
+- Supabase-SQL wurde weiterhin ausschließlich mit der wegwerfbaren PGlite-Instanz getestet; der Snapshot-Review-Abgleich ist SQL-seitig abgedeckt, eine echte Supabase/Auth/PostgREST-Integration bleibt offen.

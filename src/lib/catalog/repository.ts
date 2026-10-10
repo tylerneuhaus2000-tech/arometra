@@ -17,7 +17,8 @@ import type {
 } from './model';
 
 const PAGE_SIZE = 12;
-const MAX_RECOMMENDATION_CANDIDATES = 200;
+// Supabase's default PostgREST row cap is 1,000; this covers the planned 300–500 item catalog.
+const MAX_RECOMMENDATION_CANDIDATES = 1_000;
 
 type SearchRow = {
   id: string;

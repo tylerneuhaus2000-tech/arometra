@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: aro-verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -22,6 +26,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run import:dry-run -- --file test/fixtures/catalog-import.json
       - run: npm run test:e2e
       - run: npm run build
       - run: npm audit --audit-level=high

@@ -44,6 +44,26 @@ Abnahmekriterien:
 - Kein öffentlicher Launch, Auth/Admin, Analytics, Preisfeed, Review-System oder Bildimport in Sprint 1.
 - GitHub-Remote, Supabase-Projekt und Hosting bleiben unberührt; vorhandene Anmeldung ist keine Erlaubnis, externe Ressourcen anzulegen.
 
+## Sprint 2 — Datenbank- und Kataloggrundlage
+
+### Lokal umgesetzt
+
+1. Additive Migrationen für Quellenrechte und unveränderliche Rechteprüfungen, private Importjobs/-revisionen, pro Importzeile gespeicherte Abrufzeit, Community-Reviews mit Einwilligungs-/Moderationsstatus sowie kontrollierte Draft-Upserts ergänzt.
+2. CSV-, JSON-Array-, JSON-Envelope- und JSONL/NDJSON-Dry-Runs mit Größen-/Zeilenlimits, Schema- und Zahlenvalidierung, NFKC-/Identitätsnormalisierung, GTIN-Prüfziffernprüfung, Variantenidentität, Duplikat-/Konfliktbericht und SHA-256-Idempotenz implementiert.
+3. Rechteprozess getrennt: Owner/Reviewer registrieren bzw. prüfen Daten-, Text- und Bildrechte; Owner/Editor können nur bei aktueller Datenfreigabe privat stagen und explizit als unveröffentlichte Entwürfe upserten. Quellen-, Feld-, Varianten- und Sensorikprovenienz bleibt ungeprüft/pending, Abweichungen überschreiben keine nichtleeren Werte.
+4. Anonyme und nicht administrative Zugriffe auf Import-RPCs, private Stagingtabellen und Community-Schreibzugriffe verweigert. Öffentliche Community-Lesezugriffe erfordern Einwilligung, Moderation und ein weiterhin belegtes Produkt.
+5. Direkte Such-RPC-Aufrufe begrenzt, Wildcards escaped, inaktive Kategorien für Suche/QR gesperrt; der Empfehlungskandidatensatz deckt die geplante Kataloggröße bis 500 Produkte ab.
+6. GitHub-Actions-Workflow um Dry-Run-Prüfung und parallelen Laufabbruch ergänzt. Playwright nutzt einen eigenen Next-Ausgabeordner und startet keinen fremden, bereits laufenden Dev-Server.
+
+### Nicht freigegeben oder nicht erreichbar
+
+- Es gibt **0 echte, im AROMETRA-Katalog verifizierte Produktdatensätze** und **0 für AROMETRA freigegebene Datenquellen**. Die 300–500 Produkte sind weiterhin Zielbestand, kein erreichter Umfang.
+- Import-Staging, Draft-Upserts und Policy-Änderungen liefen nur in einer wegwerfbaren PGlite-Testdatenbank. Ein gehostetes Supabase-Projekt, URL/Publishable-Key sowie getrennte kurzlebige Auth-JWTs für Nicht-Admin, Owner/Editor und Import-/Review-Zugänge fehlen. Gegen kein Remote wurde eine Migration ausgeführt.
+- Ein Quellenaudit findet offizielle Herstellerseiten, aber noch keine Datennutzungsfreigabe. Open Food Facts wurde nicht abgerufen oder importiert; ODbL-/Datenlizenz-/Attributions- und Share-Alike-Folgen benötigen eine Entscheidung.
+- Der CI-Workflow ist lokal konfiguriert, aber mangels bestätigtem Remote nicht auf GitHub gelaufen. `gh` kennt das Repository `arometra` nicht unter dem aktiven Konto. Es wurde kein Remote, Repository oder Push erstellt.
+
+Die Prüfergebnisse zu Tests, Datenquellen, Konfiguration und Blockern stehen in `docs/QA_LOG.md` und `docs/SPRINT_2_SOURCE_AUDIT.md`.
+
 ## Tatsächlicher Stand am 10.10.2026
 
 - Sprint 0 umgesetzt: installierbare Next.js-Grundlage, TypeScript strict, Biome, Vitest, Playwright, CI-Workflow, Supabase-Konfiguration, Migration, Taxonomie-Seeds und nachvollziehbare QA-Dokumentation.

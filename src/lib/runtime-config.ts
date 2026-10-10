@@ -1,10 +1,5 @@
 import 'server-only';
-import { z } from 'zod';
-
-const supabaseEnvironment = z.object({
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_PUBLISHABLE_KEY: z.string().min(20),
-});
+import { parsePublicSupabaseConfiguration } from '@/lib/supabase/configuration';
 
 export type RuntimeConfig =
   | { mode: 'fixtures' }
@@ -23,17 +18,17 @@ export function getRuntimeConfig(): RuntimeConfig {
   }
 
   if (mode === 'supabase') {
-    const parsed = supabaseEnvironment.safeParse(process.env);
-    if (!parsed.success) {
+    const parsed = parsePublicSupabaseConfiguration(process.env, process.env.NODE_ENV);
+    if (!parsed) {
       return {
         mode: 'invalid',
-        message: 'Die Supabase-Datenquelle ist unvollständig konfiguriert.',
+        message: 'Die Supabase-Datenquelle ist unvollständig oder unsicher konfiguriert.',
       };
     }
     return {
       mode: 'supabase',
-      url: parsed.data.SUPABASE_URL,
-      publishableKey: parsed.data.SUPABASE_PUBLISHABLE_KEY,
+      url: parsed.url,
+      publishableKey: parsed.publishableKey,
     };
   }
 
