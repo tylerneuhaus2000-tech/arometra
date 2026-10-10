@@ -20,7 +20,7 @@ async function freshDatabase(): Promise<PGlite> {
   return db;
 }
 
-async function addSyntheticPublishedProduct(db: PGlite) {
+async function addSyntheticPublishedProduct(db: PGlite, categorySlug = 'whisky', slugSuffix = 'default') {
   // This transient test-only source and product are never inserted into app seeds or a shared database.
   const sourceResult = await db.query<{ id: string }>(
     "insert into public.sources (source_name, source_type) values ('TEST ONLY — synthetic source', 'operator_entry') returning id",
@@ -33,25 +33,31 @@ async function addSyntheticPublishedProduct(db: PGlite) {
     [sourceId],
   );
 
+  const brandName = `TEST ONLY — brand ${slugSuffix}`;
   const brandResult = await db.query<{ id: string }>(
     `insert into public.brands (slug, name, normalized_name)
-     values ('test-only-brand', 'TEST ONLY — brand', 'test only brand') returning id`,
+     values ($1, $2, $3) returning id`,
+    [
+      slugSuffix === 'default' ? 'test-only-brand' : `test-only-brand-${slugSuffix}`,
+      brandName,
+      `test only brand ${slugSuffix}`,
+    ],
   );
   const brandId = brandResult.rows[0].id;
   await db.query(
     `insert into public.brand_field_provenance
       (brand_id, field_path, source_id, raw_value_hash, verification_status, verified_at)
-     values ($1, 'name', $2, md5('TEST ONLY — brand'), 'approved', now())`,
-    [brandId, sourceId],
+     values ($1, 'name', $2, md5($3::text), 'approved', now())`,
+    [brandId, sourceId, brandName],
   );
   await db.query("update public.brands set status = 'published', verified_at = now() where id = $1", [brandId]);
 
-  const category = await db.query<{ id: string }>("select id from public.categories where slug = 'whisky'");
+  const category = await db.query<{ id: string }>('select id from public.categories where slug = $1', [categorySlug]);
   const categoryId = category.rows[0].id;
   const productResult = await db.query<{ id: string }>(
     `insert into public.products (brand_id, primary_category_id, slug, name, normalized_name)
-     values ($1, $2, 'test-only-product', 'TEST ONLY — product', 'test only product') returning id`,
-    [brandId, categoryId],
+     values ($1, $2, $3, 'TEST ONLY — product', 'test only product') returning id`,
+    [brandId, categoryId, slugSuffix === 'default' ? 'test-only-product' : `test-only-product-${slugSuffix}`],
   );
   const productId = productResult.rows[0].id;
 
@@ -77,8 +83,16 @@ describe('PostgreSQL migration and access policies', () => {
     const db = await freshDatabase();
     const categories = await db.query<{ count: string }>('select count(*)::text as count from public.categories');
     const products = await db.query<{ count: string }>('select count(*)::text as count from public.products');
-    expect(categories.rows[0].count).toBe('14');
+    expect(categories.rows[0].count).toBe('47');
     expect(products.rows[0].count).toBe('0');
+  });
+
+  it('exposes verification dates through the public source view schema', async () => {
+    const db = await freshDatabase();
+    const result = await db.query<{ column_name: string }>(
+      "select column_name from information_schema.columns where table_schema = 'public' and table_name = 'product_public_sources'",
+    );
+    expect(result.rows.map((row) => row.column_name)).toContain('verified_at');
   });
 
   it('blocks product publication without current approved provenance', async () => {
@@ -268,6 +282,23 @@ describe('PostgreSQL migration and access policies', () => {
     expect(tooLargePage.rows).toHaveLength(0);
     expect(percentSearch.rows).toHaveLength(0);
     expect(underscoreSearch.rows).toHaveLength(0);
+    await db.exec('reset role');
+  });
+
+  it('lets a parent category include its active subcategories in public search', async () => {
+    const db = await freshDatabase();
+    await addSyntheticPublishedProduct(db, 'whisky-scotch', 'scotch-child');
+    await addSyntheticPublishedProduct(db, 'rum-aged', 'rum-child');
+    await db.exec('set role anon');
+
+    const parentSearch = await db.query<{ slug: string }>(
+      "select slug from public.search_catalog(null, null, 'whisky', null, null, null, 1, 12)",
+    );
+    const childSearch = await db.query<{ slug: string }>(
+      "select slug from public.search_catalog(null, null, 'whisky-scotch', null, null, null, 1, 12)",
+    );
+    expect(parentSearch.rows.map((row) => row.slug)).toEqual(['test-only-product-scotch-child']);
+    expect(childSearch.rows.map((row) => row.slug)).toEqual(['test-only-product-scotch-child']);
     await db.exec('reset role');
   });
 

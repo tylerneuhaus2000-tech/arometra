@@ -566,7 +566,13 @@ as $$
           or b.normalized_name ilike '%' || i.escaped_normalized || '%' escape E'\\'
         )
       ))
-      and (category_slug is null or c.slug = category_slug)
+      and (category_slug is null or exists (
+        select 1
+        from public.categories selected_category
+        where selected_category.slug = category_slug
+          and selected_category.active
+          and (selected_category.id = c.id or selected_category.id = c.parent_id)
+      ))
       and (brand_slug is null or b.slug = brand_slug)
       and (origin_country_code is null or p.origin_country_code = origin_country_code)
       and (flavor_code is null or exists (

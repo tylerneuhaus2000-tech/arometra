@@ -18,6 +18,11 @@ export function ProductCard({
           <p className="eyebrow">{product.categoryName}</p>
           <h2>{product.name}</h2>
           {product.brandName && <p className="product-card__brand">{product.brandName}</p>}
+          {product.dataOrigin === 'verified' && product.flavors.length > 0 && (
+            <p className="product-card__flavors">
+              {product.flavors.slice(0, 2).map((flavor) => flavor.label).join(' · ')}
+            </p>
+          )}
           {product.abvPercent !== null && (
             <p className="product-card__fact">{product.abvPercent.toFixed(1)} % vol.</p>
           )}

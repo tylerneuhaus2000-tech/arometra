@@ -4,6 +4,12 @@ export type ResultStatus = 'ready' | 'unconfigured' | 'error';
 export type CatalogCategory = {
   slug: string;
   name: string;
+  parentSlug: string | null;
+};
+
+export type ProductSourceField = {
+  path: string;
+  verifiedAt: string | null;
 };
 
 export type ProductFlavorValue = {
@@ -11,6 +17,9 @@ export type ProductFlavorValue = {
   label: string;
   value: number;
   method: string;
+  sourceName: string;
+  sourceUrl: string | null;
+  verifiedAt: string | null;
   dataOrigin: 'verified' | 'synthetic';
 };
 
@@ -19,13 +28,23 @@ export type ProductSource = {
   name: string;
   url: string | null;
   attribution: string | null;
-  fields: string[];
+  fields: ProductSourceField[];
+};
+
+export type CatalogVariant = {
+  id: string;
+  gtin: string | null;
+  volumeMl: number | null;
+  marketCountryCode: string | null;
+  abvPercentOverride: number | null;
+  editionLabel: string | null;
+  sources: ProductSource[];
 };
 
 export type TastingNote = {
   id: string;
   authorLabel: string | null;
-  authorType: 'manufacturer' | 'expert' | 'editorial';
+  authorType: 'manufacturer' | 'expert' | 'editorial' | 'consumer';
   nose: string | null;
   palate: string | null;
   finish: string | null;
@@ -34,6 +53,7 @@ export type TastingNote = {
   sourceUrl: string | null;
   attribution: string | null;
   language: string;
+  tastedAt: string | null;
 };
 
 export type CatalogProduct = {
@@ -48,9 +68,12 @@ export type CatalogProduct = {
   countryCode: string | null;
   region: string | null;
   ageYears: number | null;
+  distillationDetails: string | null;
+  maturationDetails: string | null;
   abvPercent: number | null;
   description: string | null;
   flavors: ProductFlavorValue[];
+  variants: CatalogVariant[];
   tastingNotes: TastingNote[];
   sources: ProductSource[];
   dataOrigin: 'verified' | 'synthetic';

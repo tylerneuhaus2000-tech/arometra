@@ -4,11 +4,13 @@ import { createCatalogClient } from '@/lib/supabase/server';
 import { getRuntimeConfig } from '@/lib/runtime-config';
 import { normalizeSearchTerm } from './search';
 import { getSimilarRecommendations } from './recommendations';
+import { navigationTaxonomy } from './taxonomy';
 import type {
   CatalogCategory,
   CatalogProduct,
   CatalogQuery,
   CatalogResult,
+  CatalogVariant,
   DataMode,
   ProductResult,
   ProductSource,
@@ -51,6 +53,8 @@ type DetailRow = {
   origin_country_code: string | null;
   origin_region: string | null;
   age_years: number | null;
+  distillation_details: string | null;
+  maturation_details: string | null;
   abv_percent: number | null;
   description: string | null;
 };
@@ -61,13 +65,30 @@ type FlavorRow = {
   method: string;
   verified_at: string;
   dimension: { code: string; label_de: string };
+  source: { source_name: string; canonical_url: string | null };
+};
+
+type VariantRow = {
+  id: string;
+  gtin: string | null;
+  volume_ml: number | null;
+  market_country_code: string | null;
+  abv_percent_override: number | null;
+  edition_label: string | null;
+};
+
+type VariantProvenanceRow = {
+  variant_id: string;
+  field_path: string;
+  verified_at: string;
+  source: { id: string; source_name: string; canonical_url: string | null; attribution_text: string | null };
 };
 
 type NoteRow = {
   id: string;
   product_id: string;
   author_label: string | null;
-  author_type: 'manufacturer' | 'expert' | 'editorial';
+  author_type: 'manufacturer' | 'expert' | 'editorial' | 'consumer';
   nose_text: string | null;
   palate_text: string | null;
   finish_text: string | null;
@@ -84,9 +105,10 @@ type PublicSourceRow = {
   source_name: string;
   canonical_url: string | null;
   attribution_text: string | null;
+  verified_at: string;
 };
 
-type CategoryRow = { slug: string; name_de: string };
+type CategoryRow = { id: string; parent_id: string | null; slug: string; name_de: string };
 
 function unconfiguredResult(query: CatalogQuery, message: string, status: 'unconfigured' | 'error'): CatalogResult {
   return {
@@ -94,7 +116,7 @@ function unconfiguredResult(query: CatalogQuery, message: string, status: 'uncon
     mode: status === 'error' ? 'supabase' : 'unconfigured',
     message,
     products: [],
-    categories: [],
+    categories: navigationTaxonomy,
     page: query.page,
     pageSize: PAGE_SIZE,
     total: 0,
@@ -114,9 +136,12 @@ function fromSearchRow(row: SearchRow): CatalogProduct {
     countryCode: row.origin_country_code,
     region: row.origin_region,
     ageYears: row.age_years,
+    distillationDetails: null,
+    maturationDetails: null,
     abvPercent: row.abv_percent,
     description: row.description,
     flavors: [],
+    variants: [],
     tastingNotes: [],
     sources: [],
     dataOrigin: 'verified',
@@ -124,7 +149,7 @@ function fromSearchRow(row: SearchRow): CatalogProduct {
 }
 
 function fromDetailRow(row: DetailRow): CatalogProduct {
-  return fromSearchRow({
+  const product = fromSearchRow({
     ...row,
     brand_name: row.brand.name,
     brand_slug: row.brand.slug,
@@ -133,6 +158,9 @@ function fromDetailRow(row: DetailRow): CatalogProduct {
     category_slug: row.category.slug,
     total_count: 1,
   });
+  product.distillationDetails = row.distillation_details;
+  product.maturationDetails = row.maturation_details;
+  return product;
 }
 
 function filterFixtures(products: CatalogProduct[], query: CatalogQuery): CatalogProduct[] {
@@ -140,7 +168,8 @@ function filterFixtures(products: CatalogProduct[], query: CatalogQuery): Catalo
   return products.filter((product) => {
     const searchable = normalizeSearchTerm(`${product.name} ${product.brandName ?? ''} ${product.categoryName}`);
     if (term && !searchable.includes(term)) return false;
-    if (query.category && product.categorySlug !== query.category) return false;
+    if (query.category && product.categorySlug !== query.category
+      && fixtureCategories.find((category) => category.slug === product.categorySlug)?.parentSlug !== query.category) return false;
     if (query.flavor && !product.flavors.some((flavor) => flavor.code === query.flavor)) return false;
     if (query.country && product.countryCode !== query.country) return false;
     if (query.brand && product.brandSlug !== query.brand) return false;
@@ -170,6 +199,9 @@ function mapFlavorRows(rows: FlavorRow[], productId: string): ProductFlavorValue
       label: row.dimension.label_de,
       value: Number(row.value),
       method: row.method,
+      sourceName: row.source.source_name,
+      sourceUrl: row.source.canonical_url,
+      verifiedAt: row.verified_at,
       dataOrigin: 'verified',
     });
   }
@@ -186,12 +218,39 @@ function mapSources(rows: PublicSourceRow[]): ProductSource[] {
       attribution: row.attribution_text,
       fields: [],
     };
-    source.fields.push(row.field_path);
+    source.fields.push({ path: row.field_path, verifiedAt: row.verified_at });
     grouped.set(row.source_id, source);
   }
   return [...grouped.values()].map((source) => ({
     ...source,
-    fields: [...new Set(source.fields)].sort(),
+    fields: [...new Map(source.fields.map((field) => [field.path, field])).values()]
+      .sort((left, right) => left.path.localeCompare(right.path)),
+  }));
+}
+
+function mapVariantRows(variants: VariantRow[], provenance: VariantProvenanceRow[]): CatalogVariant[] {
+  const sourceRows = new Map<string, PublicSourceRow[]>();
+  for (const row of provenance) {
+    const rows = sourceRows.get(row.variant_id) ?? [];
+    rows.push({
+      product_id: row.variant_id,
+      field_path: `variant:${row.field_path}`,
+      source_id: row.source.id,
+      source_name: row.source.source_name,
+      canonical_url: row.source.canonical_url,
+      attribution_text: row.source.attribution_text,
+      verified_at: row.verified_at,
+    });
+    sourceRows.set(row.variant_id, rows);
+  }
+  return variants.map((row) => ({
+    id: row.id,
+    gtin: row.gtin,
+    volumeMl: row.volume_ml,
+    marketCountryCode: row.market_country_code,
+    abvPercentOverride: row.abv_percent_override === null ? null : Number(row.abv_percent_override),
+    editionLabel: row.edition_label,
+    sources: mapSources(sourceRows.get(row.id) ?? []),
   }));
 }
 
@@ -208,13 +267,33 @@ function mapNotes(rows: NoteRow[]): TastingNote[] {
     sourceUrl: row.source.canonical_url,
     attribution: row.source.attribution_text,
     language: row.language,
+    tastedAt: row.tasted_at,
   }));
 }
 
 async function getDatabaseCategories(client: NonNullable<ReturnType<typeof createCatalogClient>>): Promise<CatalogCategory[]> {
-  const { data, error } = await client.from('categories').select('slug,name_de').eq('active', true).order('sort_order');
+  const { data, error } = await client.from('categories').select('id,parent_id,slug,name_de').eq('active', true).order('sort_order');
   if (error || !data) throw new Error('category_query_failed');
-  return (data as unknown as CategoryRow[]).map((row) => ({ slug: row.slug, name: row.name_de }));
+  const rows = data as unknown as CategoryRow[];
+  const slugById = new Map(rows.map((row) => [row.id, row.slug]));
+  return rows.map((row) => ({
+    slug: row.slug,
+    name: row.name_de,
+    parentSlug: row.parent_id ? slugById.get(row.parent_id) ?? null : null,
+  }));
+}
+
+export async function getNavigationCategories(): Promise<CatalogCategory[]> {
+  const config = getRuntimeConfig();
+  if (config.mode === 'fixtures' || config.mode === 'unconfigured') return navigationTaxonomy;
+  if (config.mode !== 'supabase') return [];
+  const client = createCatalogClient();
+  if (!client) return [];
+  try {
+    return await getDatabaseCategories(client);
+  } catch {
+    return [];
+  }
 }
 
 export async function getCatalog(query: CatalogQuery): Promise<CatalogResult> {
@@ -256,11 +335,20 @@ export async function getCatalog(query: CatalogQuery): Promise<CatalogResult> {
     ]);
     if (error) return unconfiguredResult(query, 'Der Katalog konnte nicht geladen werden.', 'error');
     const rows = (data ?? []) as unknown as SearchRow[];
+    const products = rows.map(fromSearchRow);
+    if (products.length > 0) {
+      const flavorResult = await client.from('product_flavor_values')
+        .select('product_id,value,method,verified_at,dimension:flavor_dimensions!inner(code,label_de),source:sources!inner(source_name,canonical_url)')
+        .in('product_id', products.map((product) => product.id));
+      if (flavorResult.error) return unconfiguredResult(query, 'Das Geschmacksprofil konnte nicht geprüft werden.', 'error');
+      const flavorRows = (flavorResult.data ?? []) as unknown as FlavorRow[];
+      for (const product of products) product.flavors = mapFlavorRows(flavorRows, product.id);
+    }
     return {
       status: 'ready',
       mode: 'supabase',
       message: null,
-      products: rows.map(fromSearchRow),
+      products,
       categories,
       page: query.page,
       pageSize: PAGE_SIZE,
@@ -296,7 +384,7 @@ export async function getProductBySlug(slug: string): Promise<ProductResult> {
   try {
     const { data, error } = await client
       .from('products')
-      .select('id,slug,name,brand_id,brand:brands!inner(name,slug),primary_category_id,category:categories!inner(name_de,slug),product_family,origin_country_code,origin_region,age_years,abv_percent,description')
+      .select('id,slug,name,brand_id,brand:brands!inner(name,slug),primary_category_id,category:categories!inner(name_de,slug),product_family,origin_country_code,origin_region,age_years,distillation_details,maturation_details,abv_percent,description')
       .eq('slug', slug)
       .maybeSingle();
     if (error) return { status: 'error', mode: 'supabase', message: 'Das Produkt konnte nicht geladen werden.', product: null };
@@ -304,25 +392,41 @@ export async function getProductBySlug(slug: string): Promise<ProductResult> {
 
     const row = data as unknown as DetailRow;
     const product = fromDetailRow(row);
-    const [flavorResult, noteResult, sourceResult] = await Promise.all([
+    const [flavorResult, noteResult, sourceResult, variantResult] = await Promise.all([
       client.from('product_flavor_values')
-        .select('product_id,value,method,verified_at,dimension:flavor_dimensions!inner(code,label_de)')
+        .select('product_id,value,method,verified_at,dimension:flavor_dimensions!inner(code,label_de),source:sources!inner(source_name,canonical_url)')
         .eq('product_id', product.id),
       client.from('tasting_notes')
         .select('id,product_id,author_label,author_type,nose_text,palate_text,finish_text,overall_text,tasted_at,language,source:sources!inner(source_name,canonical_url,attribution_text)')
         .eq('product_id', product.id),
       client.from('product_public_sources')
-        .select('product_id,field_path,source_id,source_name,canonical_url,attribution_text')
+        .select('product_id,field_path,source_id,source_name,canonical_url,attribution_text,verified_at')
         .eq('product_id', product.id),
+      client.from('product_variants')
+        .select('id,gtin,volume_ml,market_country_code,abv_percent_override,edition_label')
+        .eq('product_id', product.id)
+        .order('volume_ml'),
     ]);
 
-    if (flavorResult.error || noteResult.error || sourceResult.error) {
+    if (flavorResult.error || noteResult.error || sourceResult.error || variantResult.error) {
       return { status: 'error', mode: 'supabase', message: 'Produktnachweise konnten nicht vollständig geladen werden.', product: null };
+    }
+
+    const variants = (variantResult.data ?? []) as unknown as VariantRow[];
+    const variantIds = variants.map((variant) => variant.id);
+    const provenanceResult = variantIds.length > 0
+      ? await client.from('variant_field_provenance')
+        .select('variant_id,field_path,verified_at,source:sources!inner(id,source_name,canonical_url,attribution_text)')
+        .in('variant_id', variantIds)
+      : { data: [], error: null };
+    if (provenanceResult.error) {
+      return { status: 'error', mode: 'supabase', message: 'Abfüllungsnachweise konnten nicht vollständig geladen werden.', product: null };
     }
 
     product.flavors = mapFlavorRows((flavorResult.data ?? []) as unknown as FlavorRow[], product.id);
     product.tastingNotes = mapNotes((noteResult.data ?? []) as unknown as NoteRow[]);
     product.sources = mapSources((sourceResult.data ?? []) as unknown as PublicSourceRow[]);
+    product.variants = mapVariantRows(variants, (provenanceResult.data ?? []) as unknown as VariantProvenanceRow[]);
     return { status: 'ready', mode: 'supabase', message: null, product };
   } catch {
     return { status: 'error', mode: 'supabase', message: 'Das Produkt konnte nicht geladen werden.', product: null };
@@ -342,7 +446,7 @@ export async function getSimilarProducts(product: CatalogProduct): Promise<Retur
   try {
     const { data, error } = await client
       .from('products')
-      .select('id,slug,name,brand_id,brand:brands!inner(name,slug),primary_category_id,category:categories!inner(name_de,slug),product_family,origin_country_code,origin_region,age_years,abv_percent,description')
+      .select('id,slug,name,brand_id,brand:brands!inner(name,slug),primary_category_id,category:categories!inner(name_de,slug),product_family,origin_country_code,origin_region,age_years,distillation_details,maturation_details,abv_percent,description')
       .order('name')
       .limit(MAX_RECOMMENDATION_CANDIDATES);
     if (error || !data || data.length === 0) return [];
@@ -351,7 +455,7 @@ export async function getSimilarProducts(product: CatalogProduct): Promise<Retur
     const ids = products.map((item) => item.id);
     const flavorResult = await client
       .from('product_flavor_values')
-      .select('product_id,value,method,verified_at,dimension:flavor_dimensions!inner(code,label_de)')
+      .select('product_id,value,method,verified_at,dimension:flavor_dimensions!inner(code,label_de),source:sources!inner(source_name,canonical_url)')
       .in('product_id', ids);
     if (flavorResult.error) return [];
 

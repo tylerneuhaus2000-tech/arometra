@@ -97,3 +97,37 @@ Commitstatus: lokaler Commit auf `main` nach Abschluss der hier dokumentierten G
 - `npm audit --audit-level=high` — 0 Schwachstellen; `git diff --check` — erfolgreich.
 - `npm run test:integration:supabase` — `BLOCKED`, weil Entwicklungsprojekt-URL, Publishable Key sowie getrennte kurzlebige Nicht-Admin- und Owner/Editor-JWTs fehlen. Keine Live-API-Anfrage und keine Remote-Migration.
 - Supabase-SQL wurde weiterhin ausschließlich mit der wegwerfbaren PGlite-Instanz getestet; der Snapshot-Review-Abgleich ist SQL-seitig abgedeckt, eine echte Supabase/Auth/PostgREST-Integration bleibt offen.
+
+## 2026-10-10 — Sprint 2.5: Real Data Integration & Infrastructure
+
+### Auditbasis und Konfiguration
+
+- Basis-Commits: Sprint 2 `916499063a01e623d5187cbc7f6abf020c2bf05d`, QA-Nachtrag `becb2f7e84b73bcefbd960acc022fce2099b367d`; Start-Working-Tree war sauber.
+- Repository-/Umgebungsprüfung wurde wiederholt; es gibt weiterhin keinen Supabase-Projektzugang und keinen bestätigten GitHub-Remote. Der Supabase-Integrationstest hat sicher `BLOCKED` gemeldet, ohne API-Anfrage oder Datenbankänderung.
+- Migrationen wurden nur durch die isolierten PGlite-Tests ausgeführt. Keine Migration ging an ein Remoteprojekt; keine produktiven/destruktiven Datenbankbefehle wurden gestartet.
+
+### Tatsächlich ausgeführt
+
+- `npm run lint` — Biome prüfte 34 Dateien ohne Befund.
+- `npm run typecheck` — erfolgreich (`tsc --noEmit`).
+- `npm test` — 6 Testdateien, 40 Tests bestanden. PGlite führte alle vier Migrationen und Taxonomie-Seeds aus. Die Tests prüfen 47 Kategorien, null Seed-Produkte, geprüfte Quellenansichten mit `verified_at`, aktive Unterkategorien in der anonymen Suche sowie die vorhandenen Import-, QR-, Rechte- und RLS-Regeln. Ein zwischenzeitlicher DB-Testfehler wurde auf den erweiterten `TEST ONLY`-Brand-Provenienzhash im Testhelfer zurückgeführt und korrigiert; der Endlauf bestand.
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:e2e` — letzter Gesamtlauf 5/5. Geprüft: Startseite samt Axe/WCAG-2.2-AA-Smoke, global sichtbare Suche, Kategorie-Auf-/Zuklappen, Query-State beim Kategorienwechsel, Steckbrief/Empfehlungs-Test, QR-Redirect/404/410 sowie 390- und 320-px-Ansichten ohne horizontalen Überlauf.
+- `AROMETRA_NEXT_DIST_DIR=.next-build npm run build` — erfolgreich mit Next.js 16.4.0; Home, Entdecken, dynamischer Steckbrief, QR-Route und Not-found wurden gebaut. Von Next geänderte `next-env.d.ts`-/`tsconfig.json`-Dateien wurden danach zurückgesetzt.
+- Production-Server ohne `AROMETRA_DATA_MODE` gestartet. Home, Entdecken und unbekannter Steckbrief lieferten HTTP 200 mit dem jeweiligen unkonfigurierten Leer-/Fehlerzustand; synthetische Profile waren nicht im HTML. Eine Browserprüfung bestätigte außerdem die mobile Suche. Screenshots: `artifacts/qa/sprint-2-5/unconfigured/`.
+- Fixture-E2E-Screenshots wurden getrennt und vollständig als synthetisch gekennzeichnet in `artifacts/qa/sprint-2-5/` gespeichert. Ältere referenzierte QA-Bilder wurden nicht überschrieben. Alle acht Bilder wurden visuell geprüft.
+- `npm run import:dry-run -- --file test/fixtures/catalog-import.json` — eine ausdrücklich synthetische Zeile, `incomplete=1`, `invalid=0`; keine Übernahme in App oder Datenbank.
+- `npm run test:integration:supabase` — `BLOCKED` mit dem sicheren Hinweis, dass Projekt-URL, Publishable Key und getrennte kurzlebige Nicht-Admin-/Owner-Editor-Test-JWTs fehlen. Keine Live-RLS-, Auth- oder PostgREST-Ergebnisse.
+- `npm audit --audit-level=high` — 0 Schwachstellen. Secret-Musterprüfung über 73 versionierte und nicht ignorierte Textdateien — keine Credential-Muster. `git diff --check` — erfolgreich.
+
+### Daten und Quellen
+
+- Reale, im AROMETRA-Katalog verifizierte Produktdatensätze: **0**. Die PGlite-Seed-Prüfung bestätigt `products=0`; eine Live-Datenbank ist nicht erreichbar, ihr dortiger Bestand ist daher unbekannt.
+- Zehn Recherchekandidaten wurden anhand verlinkter Herstellerseiten geprüft, darunter Teacher's Highland Cream sowie die neun Kandidaten aus dem Sprintauftrag. Markt-/Abfüllungsdetails bleiben teilweise offen. Keiner wurde gestaged oder importiert; verifizierte Sensorikwerte, GTINs, Community-Bewertungen und Bilder: **0**.
+- Rechte-/Lizenzstatus: **0 freigegebene Datenquellen**, **0 lizenzierte Produktbilder**. Herstellerseiten sind Faktenquellen zur Recherche, aber die gesichteten Nutzungsbedingungen gewähren AROMETRA keine Wiederverwendungsrechte. Open Food Facts wurde nicht abgefragt. Detailfakten, Marktgrenzen, Abrufdatum und Lizenzentscheidung stehen in `docs/SPRINT_2_5_PRODUCT_RESEARCH.md`.
+- Seed enthält nur 14 Kategorie-Wurzeln plus 33 Unterkategorien; keine Marken-, Produkt-, GTIN-, Preis-, Sensorik-, Bewertungs- oder Verkaufsdaten.
+
+### Integrationsstatus und Grenzen
+
+- Supabase-Konfiguration und Datenpfad sind vorbereitet. Schema-/SQL-/RLS-Tests in PGlite bestanden, echte Supabase-Auth-/PostgREST-RLS-Integration: **BLOCKED / nicht verifiziert**. PGlite simuliert diese Dienste nicht.
+- `.github/workflows/ci.yml` ist lokal vorhanden. Es gab keinen bestätigten Remote; daher wurde GitHub Actions nicht ausgeführt. Die aktive `gh`-Anmeldung entspricht dem im Masterprompt benannten persönlichen Konto; ein Repository `arometra` wurde in diesem Audit noch nicht erstellt und es wurde nichts gepusht.
+- `gitleaks` und `trufflehog` sind nicht installiert. Der Secret-Scan ist ein dokumentierter Muster-Scan und kein Ersatz für einen späteren CI-/GitHub-Secret-Scanning-Lauf.

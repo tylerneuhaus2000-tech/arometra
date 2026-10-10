@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { DataSourceNotice } from '@/components/data-source-notice';
-import { SearchForm } from '@/components/search-form';
-import { SiteHeader } from '@/components/site-header';
+import { SiteFrame } from '@/components/site-frame';
 import { getCatalog } from '@/lib/catalog/repository';
 
 export const dynamic = 'force-dynamic';
@@ -10,8 +9,7 @@ export default async function HomePage() {
   const catalog = await getCatalog({ q: '', category: '', flavor: '', country: '', brand: '', page: 1 });
 
   return (
-    <>
-      <SiteHeader />
+    <SiteFrame categories={catalog.categories} footerNote="Produktinformationen mit nachvollziehbarer Herkunft.">
       <main id="main-content">
         <div className="content-wrap page-notices">
           <DataSourceNotice mode={catalog.mode} message={catalog.message} />
@@ -23,14 +21,9 @@ export default async function HomePage() {
             <p className="hero__lede">
               Finde geprüfte Produktangaben, ihre Quellen und nachvollziehbare Alternativen.
             </p>
-            <SearchForm categories={catalog.categories} />
             <Link className="text-link hero__secondary" href="/entdecken">
               Katalog öffnen <span aria-hidden="true">→</span>
             </Link>
-          </div>
-          <div className="hero__visual">
-            <div className="hero__visual-mark" aria-hidden="true">A</div>
-            <p>Mit Beleg weiterdenken</p>
           </div>
         </section>
 
@@ -42,9 +35,9 @@ export default async function HomePage() {
             </div>
             <Link className="text-link" href="/entdecken">Alle ansehen <span aria-hidden="true">→</span></Link>
           </div>
-          {catalog.categories.length > 0 ? (
+          {catalog.categories.some((category) => category.parentSlug === null) ? (
             <ul className="category-list">
-              {catalog.categories.slice(0, 6).map((category) => (
+              {catalog.categories.filter((category) => category.parentSlug === null).slice(0, 5).map((category) => (
                 <li key={category.slug}>
                   <Link href={`/entdecken?category=${encodeURIComponent(category.slug)}`}>
                     <span>{category.name}</span>
@@ -52,6 +45,7 @@ export default async function HomePage() {
                   </Link>
                 </li>
               ))}
+              <li><Link href="/entdecken"><span>Alle Kategorien</span><span aria-hidden="true">↗</span></Link></li>
             </ul>
           ) : (
             <p className="muted-copy">Kategorien erscheinen, sobald eine Datenquelle verbunden ist.</p>
@@ -82,10 +76,6 @@ export default async function HomePage() {
           </div>
         </section>
       </main>
-      <footer className="site-footer content-wrap">
-        <span>AROMETRA</span>
-        <span>Produktinformationen mit nachvollziehbarer Herkunft.</span>
-      </footer>
-    </>
+    </SiteFrame>
   );
 }

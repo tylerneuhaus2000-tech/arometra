@@ -1,4 +1,4 @@
-# AROMETRA — Implementierungsplan Sprint 0 und 1
+# AROMETRA — Implementierungsplan
 
 Stand: 10.10.2026
 
@@ -64,9 +64,29 @@ Abnahmekriterien:
 
 Die Prüfergebnisse zu Tests, Datenquellen, Konfiguration und Blockern stehen in `docs/QA_LOG.md` und `docs/SPRINT_2_SOURCE_AUDIT.md`.
 
+## Sprint 2.5 — Real Data Integration & Infrastructure
+
+### Lokal umgesetzt
+
+1. Die Taxonomie um 33 hierarchische Unterkategorien ergänzt. Kategoriesuche unter einer Wurzel umfasst nun direkte, aktive Unterkategorien; das Seed bleibt frei von Produkten.
+2. Eine Modern-Oak-Seitenstruktur mit linker Navigationsleiste, nativen Auf-/Zuklappkontrollen, globaler Suche und drei Desktop-Spalten umgesetzt. Such- und Kategorien-URL-Zustände bleiben beim Navigieren erhalten.
+3. Produktdetailabfragen um Provenienz- und Prüfzeit, Herstellung/Reifung, öffentlich freigegebene Varianten/GTINs, Herkunfts- und Sensorikquellen sowie Verkostungsdatum ergänzt. Das Schema liefert Varianten und Aromen weiterhin ausschließlich nach den vorhandenen Public-RLS-/Provenienzregeln.
+4. Eine additive Migration erweitert die öffentliche Quellenansicht um das geprüfte Zeitfeld. PGlite führt sämtliche Migrationen aus; echter Supabase-Auth-/PostgREST-Betrieb wurde nicht simuliert.
+5. Zehn Produktkandidaten anhand offizieller Herstellerquellen recherchiert und Markt-/Rechteunsicherheiten in `docs/SPRINT_2_5_PRODUCT_RESEARCH.md` festgehalten. Kein Kandidat wurde ohne Rechtefreigabe importiert.
+6. Browser-Screenshots für Test- und unkonfigurierte Produktionsmodi erzeugt und visuell geprüft.
+
+### Nicht erreichbar oder nicht freigegeben
+
+- Es gibt **0 echte, im AROMETRA-Katalog verifizierte Produktdatensätze**, **0 freigegebene Datenquellen** und **0 lizenzierte Produktbilder**. Tatsächlicher Produktbestand eines Liveprojekts ist mangels Verbindung unbekannt.
+- Supabase-URL, Publishable Key, Entwicklungs-Projekt-Ref und getrennte kurzlebige Auth-JWTs für Nicht-Admin und Owner/Editor fehlen. Deshalb sind Remote-Migrationen und Live-RLS-/Auth-/PostgREST-Integrationstests nicht ausgeführt.
+- Open Food Facts wurde nicht abgefragt/importiert; Entscheidung zu ODbL, Attribution, Share-Alike und Bildlizenzen offen. Herstellerseiten erteilen in der Recherche keine AROMETRA-Nutzungsrechte.
+- Die Actions-Pipeline liegt lokal in `.github/workflows/ci.yml`; GitHub Actions lief mangels bestätigtem Remote nicht. Es wurde keine Änderung an einer anderen Anwendung oder einem fremden Repository vorgenommen.
+- CI/Sicherheitsprüfungen und die genaue Evidenz stehen in `docs/QA_LOG.md`.
+
 ## Tatsächlicher Stand am 10.10.2026
 
 - Sprint 0 umgesetzt: installierbare Next.js-Grundlage, TypeScript strict, Biome, Vitest, Playwright, CI-Workflow, Supabase-Konfiguration, Migration, Taxonomie-Seeds und nachvollziehbare QA-Dokumentation.
 - Sprint 1 im maximal möglichen lokalen Umfang umgesetzt: Suche/Filter/Pagination, dynamischer Steckbrief, quellengestützte Repository-Abfragen, QR-Redirect mit 404/410, erklärbare Empfehlungen und getrennte synthetische Testprofile.
 - Lokale Unit-/PGlite-, Browser-, Accessibility-Smoke-, Produktionssperr-, Build- und Dependency-Audit-Prüfungen sind im QA-Log mit Ergebnissen belegt.
 - Supabase-Laufzeit und reale Inhalte sind nicht abgenommen: Docker, Zugangsdaten, konkrete Quellen und Bildrechte fehlen. Der implementierte Supabase-Pfad ist daher bis zu einem echten Supabase-Stack `PARTIAL`, nicht live verifiziert.
+- Sprint 2.5 liefert Datenbankabfrage- und UI-Vorbereitung, Unterkategorien und Quellenprüfzeit. Live-Datenbank, Produktimport, lizenzierte Bilder und reale sensorische Empfehlungen bleiben bis zu Zugang und Rechtefreigabe offen.

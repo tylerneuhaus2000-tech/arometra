@@ -3,26 +3,25 @@ import { notFound } from 'next/navigation';
 import { PageErrorState } from '@/components/catalog-state';
 import { DataSourceNotice } from '@/components/data-source-notice';
 import { ProductCard } from '@/components/product-card';
-import { SiteHeader } from '@/components/site-header';
-import { getModeStatus, getProductBySlug, getSimilarProducts } from '@/lib/catalog/repository';
+import { SiteFrame } from '@/components/site-frame';
+import { getModeStatus, getNavigationCategories, getProductBySlug, getSimilarProducts } from '@/lib/catalog/repository';
 import type { CatalogProduct, ProductSource } from '@/lib/catalog/model';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const result = await getProductBySlug(slug);
+  const [result, categories] = await Promise.all([getProductBySlug(slug), getNavigationCategories()]);
 
   if (result.status === 'ready' && !result.product) notFound();
   if (!result.product) {
     return (
-      <>
-        <SiteHeader />
-        <main className="content-wrap page-content">
+      <SiteFrame categories={categories}>
+        <main id="main-content" className="content-wrap page-content">
           <DataSourceNotice mode={result.mode} message={result.message} />
           <PageErrorState title="Produktdaten sind gerade nicht verfügbar." message="Versuche es über den Katalog erneut." />
         </main>
-      </>
+      </SiteFrame>
     );
   }
 
@@ -31,8 +30,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const modeStatus = getModeStatus(result.mode);
 
   return (
-    <>
-      <SiteHeader />
+    <SiteFrame categories={categories} selectedCategory={product.categorySlug}>
       <main id="main-content" className="content-wrap page-content product-page">
         <DataSourceNotice mode={result.mode} message={result.message} />
         <nav aria-label="Brotkrumennavigation" className="breadcrumbs">
@@ -89,6 +87,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 <article className="tasting-note" key={note.id}>
                   <p className="tasting-note__byline">
                     {authorTypeLabel(note.authorType)}{note.authorLabel ? ` · ${note.authorLabel}` : ''}
+                    {note.tastedAt ? ` · Verkostet am ${formatDate(note.tastedAt)}` : ''}
                   </p>
                   <NoteField label="Nase" value={note.nose} />
                   <NoteField label="Gaumen" value={note.palate} />
@@ -122,7 +121,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 <li key={source.id}>
                   <div>
                     <strong><SourceAnchor source={source} /></strong>
-                    <p>{source.fields.map(fieldLabel).join(', ')}</p>
+                    <ul className="source-field-list">
+                      {source.fields.map((field) => (
+                        <li key={field.path}>
+                          {fieldLabel(field.path)}{field.verifiedAt ? ` · geprüft am ${formatDate(field.verifiedAt)}` : ''}
+                        </li>
+                      ))}
+                    </ul>
                     {source.attribution && <p>{source.attribution}</p>}
                   </div>
                 </li>
@@ -164,11 +169,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           {modeStatus.isSynthetic && <p className="muted-copy">Die Übereinstimmungen hier prüfen nur die Empfehlungslogik mit Testmerkmalen.</p>}
         </section>
       </main>
-      <footer className="site-footer content-wrap">
-        <span>AROMETRA</span>
-        <span>Produktinformationen mit nachvollziehbarer Herkunft.</span>
-      </footer>
-    </>
+    </SiteFrame>
   );
 }
 
@@ -183,10 +184,45 @@ function ProductFacts({ product }: { product: CatalogProduct }) {
       </div>
       <dl className="facts-grid">
         <Fact label="Kategorie" value={product.categoryName} />
+        <Fact label="Produkttyp" value={product.family ?? 'Nicht belegt'} />
         <Fact label="Herkunft" value={product.region ?? product.countryCode ?? 'Nicht belegt'} />
         <Fact label="Alkoholgehalt" value={product.abvPercent === null ? 'Nicht belegt' : `${product.abvPercent.toFixed(1)} % vol.`} />
         <Fact label="Alter" value={product.ageYears === null ? 'Nicht belegt' : `${product.ageYears} Jahre`} />
       </dl>
+      <dl className="facts-grid facts-grid--process">
+        <Fact label="Herstellung" value={product.distillationDetails ?? 'Nicht belegt'} />
+        <Fact label="Reifung" value={product.maturationDetails ?? 'Nicht belegt'} />
+      </dl>
+      <div className="variant-section">
+        <h3>Abfüllungen</h3>
+        {product.variants.length > 0 ? (
+          <ul className="variant-list">
+            {product.variants.map((variant) => (
+              <li key={variant.id}>
+                <div>
+                  <strong>{variant.editionLabel ?? 'Freigegebene Abfüllung'}</strong>
+                  <p>
+                    {variant.volumeMl ? `${variant.volumeMl} ml` : 'Flaschengröße nicht belegt'}
+                    {variant.marketCountryCode ? ` · Markt ${variant.marketCountryCode}` : ''}
+                    {variant.abvPercentOverride !== null ? ` · ${variant.abvPercentOverride.toFixed(1)} % vol.` : ''}
+                  </p>
+                  {variant.gtin && <p>GTIN: {variant.gtin}</p>}
+                </div>
+                {variant.sources.map((source) => (
+                  <p className="source-line" key={source.id}>
+                    Abfüllungsnachweis: <SourceAnchor source={source} />
+                    {' · '}{source.fields.map((field) => (
+                      `${fieldLabel(field.path)}${field.verifiedAt ? ` (geprüft ${formatDate(field.verifiedAt)})` : ''}`
+                    )).join(', ')}
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty-copy">Für dieses Produkt ist noch keine freigegebene Abfüllung hinterlegt.</p>
+        )}
+      </div>
       <div className="flavor-section">
         <h3>Geschmacksprofil</h3>
         {product.flavors.length > 0 ? (
@@ -198,6 +234,12 @@ function ProductFacts({ product }: { product: CatalogProduct }) {
                   <span style={{ width: `${Math.max(0, Math.min(100, flavor.value * 10))}%` }} />
                 </span>
                 <span className="flavor-value">{flavor.value}/10</span>
+                <span className="flavor-source">
+                  {flavorMethodLabel(flavor.method)} · {safeHttpUrl(flavor.sourceUrl)
+                    ? <a href={safeHttpUrl(flavor.sourceUrl) ?? undefined} target="_blank" rel="noreferrer">{flavor.sourceName}<span className="visually-hidden"> (öffnet externe Quelle)</span></a>
+                    : flavor.sourceName}
+                  {flavor.verifiedAt ? ` · geprüft am ${formatDate(flavor.verifiedAt)}` : ''}
+                </span>
               </li>
             ))}
           </ul>
@@ -249,6 +291,12 @@ function fieldLabel(field: string): string {
     origin_country_code: 'Herkunft',
     origin_region: 'Region',
     age_years: 'Alter',
+    variant_gtin: 'GTIN',
+    'variant:gtin': 'GTIN',
+    'variant:volume_ml': 'Flaschengröße',
+    'variant:market_country_code': 'Markt',
+    'variant:abv_percent_override': 'Alkoholgehalt der Abfüllung',
+    'variant:edition_label': 'Edition',
     distillation_details: 'Destillation',
     maturation_details: 'Reifung',
     description: 'Beschreibung',
@@ -257,7 +305,28 @@ function fieldLabel(field: string): string {
   return labels[field] ?? 'Produktangabe';
 }
 
-function authorTypeLabel(authorType: 'manufacturer' | 'expert' | 'editorial'): string {
-  const labels = { manufacturer: 'Herstellerangabe', expert: 'Fachverkostung', editorial: 'Redaktionelle Notiz' };
+function formatDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return value;
+  return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeZone: 'UTC' }).format(parsed);
+}
+
+function flavorMethodLabel(method: string): string {
+  const labels: Record<string, string> = {
+    manufacturer: 'Herstellerangabe',
+    expert: 'Fachverkostung',
+    editorial: 'Redaktionelle Erhebung',
+    community_aggregated: 'Community-Aggregat',
+  };
+  return labels[method] ?? 'Geprüfte Erhebung';
+}
+
+function authorTypeLabel(authorType: 'manufacturer' | 'expert' | 'editorial' | 'consumer'): string {
+  const labels = {
+    manufacturer: 'Herstellerangabe',
+    expert: 'Fachverkostung',
+    editorial: 'Redaktionelle Notiz',
+    consumer: 'Community-Erfahrung',
+  };
   return labels[authorType];
 }

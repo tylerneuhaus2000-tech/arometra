@@ -2,8 +2,7 @@ import Link from 'next/link';
 import { CatalogEmptyState, PageErrorState } from '@/components/catalog-state';
 import { DataSourceNotice } from '@/components/data-source-notice';
 import { ProductCard } from '@/components/product-card';
-import { SearchForm } from '@/components/search-form';
-import { SiteHeader } from '@/components/site-header';
+import { SiteFrame } from '@/components/site-frame';
 import { getCatalog } from '@/lib/catalog/repository';
 import { parseCatalogQuery, type RawSearchParams } from '@/lib/catalog/search';
 
@@ -20,8 +19,13 @@ export default async function DiscoverPage({
   const lastPage = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   return (
-    <>
-      <SiteHeader />
+    <SiteFrame
+      categories={result.categories}
+      selectedCategory={parsed.query.category}
+      searchTerm={parsed.query.q}
+      searchCategory={parsed.query.category}
+      footerNote="Keine Produktangabe ohne geprüfte Grundlage."
+    >
       <main id="main-content" className="content-wrap page-content">
         <DataSourceNotice mode={result.mode} message={result.message} />
         {parsed.invalid && (
@@ -32,8 +36,6 @@ export default async function DiscoverPage({
           <h1>Entdecken</h1>
           <p>Suche nach Produkt oder Marke. Angezeigt werden nur freigegebene Einträge.</p>
         </header>
-
-        <SearchForm categories={result.categories} q={parsed.query.q} category={parsed.query.category} />
 
         {result.status === 'error' ? (
           <PageErrorState title="Der Katalog ist gerade nicht erreichbar." message="Bitte versuche es später erneut." />
@@ -64,11 +66,7 @@ export default async function DiscoverPage({
           </>
         )}
       </main>
-      <footer className="site-footer content-wrap">
-        <span>AROMETRA</span>
-        <span>Keine Produktangabe ohne geprüfte Grundlage.</span>
-      </footer>
-    </>
+    </SiteFrame>
   );
 }
 

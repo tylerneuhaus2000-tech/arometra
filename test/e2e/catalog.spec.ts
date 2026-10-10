@@ -21,8 +21,8 @@ test('home page is accessible and provides a direct discovery path', async ({ pa
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const scrollBehavior = await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior);
   expect(scrollBehavior).toBe('auto');
-  await mkdir('artifacts/qa', { recursive: true });
-  await page.screenshot({ path: 'artifacts/qa/home-desktop.png', fullPage: true });
+  await mkdir('artifacts/qa/sprint-2-5', { recursive: true });
+  await page.screenshot({ path: 'artifacts/qa/sprint-2-5/home-desktop.png', fullPage: true });
   const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(accessibility.violations).toEqual([]);
 });
@@ -37,8 +37,31 @@ test('search opens a dynamic product profile with an explained recommendation', 
   await expect(page.getByText(/Gemeinsame Testmerkmale: Prüfmerkmal/)).toBeVisible();
   await expect(page.getByText(/keine Verkostungsnotizen/i)).toBeVisible();
   await hideDevelopmentIndicator(page);
-  await mkdir('artifacts/qa', { recursive: true });
-  await page.screenshot({ path: 'artifacts/qa/product-desktop.png', fullPage: true });
+  await mkdir('artifacts/qa/sprint-2-5', { recursive: true });
+  await page.screenshot({ path: 'artifacts/qa/sprint-2-5/product-desktop.png', fullPage: true });
+});
+
+test('category navigation expands on desktop and opens on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/entdecken?q=Alpha');
+  const search = page.getByRole('searchbox', { name: 'Spirituose suchen' });
+  await expect(search).toHaveValue('Alpha');
+  expect(await search.evaluate((input) => input.clientWidth)).toBeGreaterThan(200);
+  const categoryNavigation = page.getByRole('navigation', { name: 'Spirituosenkategorien' });
+  await expect(categoryNavigation.getByRole('link', { name: 'Whisky', exact: true })).toBeVisible();
+  await expect(categoryNavigation.getByRole('link', { name: 'Scotch Whisky' })).toBeHidden();
+  await categoryNavigation.locator('summary[aria-label="Unterkategorien von Whisky"]').click();
+  await expect(categoryNavigation.getByRole('link', { name: 'Scotch Whisky' })).toBeVisible();
+  await categoryNavigation.getByRole('link', { name: 'Gin', exact: true }).click();
+  await expect(page).toHaveURL(/q=Alpha&category=gin/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  const categoryToggle = page.getByRole('button', { name: 'Kategorien' });
+  await expect(categoryToggle).toHaveAttribute('aria-expanded', 'false');
+  await categoryToggle.click();
+  await expect(categoryToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('navigation', { name: 'Spirituosenkategorien' }).getByRole('link', { name: 'Gin', exact: true })).toBeVisible();
 });
 
 test('QR fixture resolves directly while an unknown code returns not found', async ({ page }) => {
@@ -61,8 +84,13 @@ test('mobile discovery fits a narrow viewport without horizontal overflow', asyn
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width).toBeLessThanOrEqual(390);
   await hideDevelopmentIndicator(page);
-  await mkdir('artifacts/qa', { recursive: true });
-  await page.screenshot({ path: 'artifacts/qa/catalog-mobile.png', fullPage: true });
+  await mkdir('artifacts/qa/sprint-2-5', { recursive: true });
+  await page.screenshot({ path: 'artifacts/qa/sprint-2-5/catalog-mobile.png', fullPage: true });
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/entdecken');
+  await hideDevelopmentIndicator(page);
+  await page.screenshot({ path: 'artifacts/qa/sprint-2-5/catalog-desktop.png', fullPage: true });
 
   await page.setViewportSize({ width: 320, height: 640 });
   await expect(page.getByRole('searchbox', { name: 'Spirituose suchen' })).toBeVisible();

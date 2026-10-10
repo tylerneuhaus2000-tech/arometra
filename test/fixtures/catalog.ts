@@ -1,4 +1,5 @@
 import type { CatalogCategory, CatalogProduct } from '@/lib/catalog/model';
+import { navigationTaxonomy } from '@/lib/catalog/taxonomy';
 
 // These are deliberately generic algorithm fixtures, not spirit products or tasting claims.
 export const fixtureModeNotice =
@@ -7,9 +8,7 @@ export const fixtureModeNotice =
 export const fixtureQrCode = 'fixture000000000000000000001';
 export const fixtureDisabledQrCode = 'fixture000000000000000000000';
 
-export const fixtureCategories: CatalogCategory[] = [
-  { slug: 'testprofile', name: 'Synthetische Testprofile' },
-];
+export const fixtureCategories: CatalogCategory[] = navigationTaxonomy satisfies CatalogCategory[];
 
 function createFixture(
   id: string,
@@ -29,6 +28,8 @@ function createFixture(
     countryCode: null,
     region: null,
     ageYears: null,
+    distillationDetails: null,
+    maturationDetails: null,
     abvPercent: null,
     description: 'Synthetischer Datensatz zur Prüfung von Suche und Empfehlungslogik.',
     flavors: values.map(([code, label, value]) => ({
@@ -36,8 +37,12 @@ function createFixture(
       label,
       value,
       method: 'synthetic_test',
+      sourceName: 'Synthetischer Test',
+      sourceUrl: null,
+      verifiedAt: null,
       dataOrigin: 'synthetic',
     })),
+    variants: [],
     tastingNotes: [],
     sources: [],
     dataOrigin: 'synthetic',

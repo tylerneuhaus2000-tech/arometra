@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import { SearchForm } from '@/components/search-form';
 
-export function SiteHeader() {
+export function SiteHeader({ searchTerm = '', searchCategory = '' }: { searchTerm?: string; searchCategory?: string }) {
   return (
     <header className="site-header">
       <Link className="wordmark" href="/" aria-label="AROMETRA Startseite">
@@ -8,12 +9,8 @@ export function SiteHeader() {
       </Link>
       <nav aria-label="Hauptnavigation" className="main-navigation">
         <Link href="/entdecken">Entdecken</Link>
-        <Link href="/#ablauf">Ablauf</Link>
       </nav>
-      <Link className="header-search-link" href="/entdecken" aria-label="Produktsuche öffnen">
-        <span aria-hidden="true">⌕</span>
-        <span className="visually-hidden">Suche</span>
-      </Link>
+      <SearchForm q={searchTerm} category={searchCategory} />
     </header>
   );
 }
