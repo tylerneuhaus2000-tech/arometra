@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export function CatalogEmptyState({ searching }: { searching: boolean }) {
   return (
     <div className="empty-state">
@@ -18,7 +20,7 @@ export function PageErrorState({ title, message }: { title: string; message: str
       <p className="eyebrow">Derzeit nicht verfügbar</p>
       <h2>{title}</h2>
       <p>{message}</p>
-      <a className="text-link" href="/entdecken">Zur Suche <span aria-hidden="true">→</span></a>
+      <Link className="text-link" href="/entdecken">Zur Suche <span aria-hidden="true">→</span></Link>
     </div>
   );
 }

@@ -34,6 +34,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       AROMETRA_DATA_MODE: 'fixtures',
+      AROMETRA_UI_PREVIEW: 'true',
       AROMETRA_NEXT_DIST_DIR: '.next-e2e',
     },
   },

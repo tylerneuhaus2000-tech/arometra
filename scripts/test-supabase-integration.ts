@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { loadEnvConfig } from '@next/env';
-import { hasSafeSupabasePublishableKey } from '../src/lib/supabase/configuration';
+import { hasSafeSupabasePublishableKey, readPublicSupabaseEnvironment } from '../src/lib/supabase/configuration';
 
 loadEnvConfig(process.cwd(), true, { info: () => undefined, error: () => undefined }, true);
 
@@ -22,9 +22,8 @@ function jwtIsAuthenticated(token: string | undefined): boolean {
 }
 
 function getConfiguration(): { baseUrl: string; publishableKey: string; nonAdminToken: string; adminToken: string } {
+  const { url, publishableKey: key } = readPublicSupabaseEnvironment(process.env);
   const {
-    SUPABASE_URL: url,
-    SUPABASE_PUBLISHABLE_KEY: key,
     SUPABASE_INTEGRATION_NON_ADMIN_ACCESS_TOKEN: nonAdminToken,
     SUPABASE_INTEGRATION_ADMIN_ACCESS_TOKEN: adminToken,
   } = process.env;

@@ -30,7 +30,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const modeStatus = getModeStatus(result.mode);
 
   return (
-    <SiteFrame categories={categories} selectedCategory={product.categorySlug}>
+    <SiteFrame categories={categories} selectedCategory={product.categorySlug} activeItem="category">
       <main id="main-content" className="content-wrap page-content product-page">
         <DataSourceNotice mode={result.mode} message={result.message} />
         <nav aria-label="Brotkrumennavigation" className="breadcrumbs">

@@ -3,6 +3,26 @@ export type PublicSupabaseConfiguration = {
   publishableKey: string;
 };
 
+export type PublicSupabaseEnvironment = {
+  url: string | undefined;
+  publishableKey: string | undefined;
+};
+
+function resolveAlias(primary: string | undefined, publicAlias: string | undefined): string | undefined {
+  const values = [primary, publicAlias].filter((value): value is string => Boolean(value?.trim()));
+  if (values.length === 2 && values[0] !== values[1]) return undefined;
+  return values[0];
+}
+
+export function readPublicSupabaseEnvironment(
+  environment: Record<string, string | undefined>,
+): PublicSupabaseEnvironment {
+  return {
+    url: resolveAlias(environment.SUPABASE_URL, environment.NEXT_PUBLIC_SUPABASE_URL),
+    publishableKey: resolveAlias(environment.SUPABASE_PUBLISHABLE_KEY, environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+  };
+}
+
 export function hasSafeSupabasePublishableKey(key: string): boolean {
   if (key.startsWith('sb_secret_')) return false;
   if (key.startsWith('sb_publishable_')) return true;
@@ -21,8 +41,7 @@ export function parsePublicSupabaseConfiguration(
   environment: Record<string, string | undefined>,
   nodeEnvironment = 'development',
 ): PublicSupabaseConfiguration | null {
-  const rawUrl = environment.SUPABASE_URL;
-  const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY;
+  const { url: rawUrl, publishableKey } = readPublicSupabaseEnvironment(environment);
   if (!rawUrl || !publishableKey || !hasSafeSupabasePublishableKey(publishableKey)) return null;
 
   try {

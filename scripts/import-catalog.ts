@@ -11,7 +11,7 @@ import {
   type CatalogImportRecord,
   type ImportReport,
 } from '../src/lib/import/catalog-import';
-import { hasSafeSupabasePublishableKey } from '../src/lib/supabase/configuration';
+import { hasSafeSupabasePublishableKey, readPublicSupabaseEnvironment } from '../src/lib/supabase/configuration';
 
 const envLog = { info: () => undefined, error: () => undefined };
 loadEnvConfig(process.cwd(), true, envLog, true);
@@ -57,8 +57,7 @@ function parseAccessToken(token: string): boolean {
 }
 
 function getImportConnection(): { endpoint: string; key: string; accessToken: string } {
-  const urlValue = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+  const { url: urlValue, publishableKey: key } = readPublicSupabaseEnvironment(process.env);
   const accessToken = process.env.SUPABASE_IMPORT_ACCESS_TOKEN;
   const target = process.env.AROMETRA_SUPABASE_TARGET;
   if (!urlValue || !key || !accessToken || !hasSafeSupabasePublishableKey(key) || !parseAccessToken(accessToken)) {

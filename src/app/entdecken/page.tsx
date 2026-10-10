@@ -24,17 +24,18 @@ export default async function DiscoverPage({
       selectedCategory={parsed.query.category}
       searchTerm={parsed.query.q}
       searchCategory={parsed.query.category}
+      activeItem={parsed.query.category ? 'category' : 'catalog'}
       footerNote="Keine Produktangabe ohne geprüfte Grundlage."
     >
-      <main id="main-content" className="content-wrap page-content">
+      <main id="main-content" className="content-wrap page-content discover-page">
         <DataSourceNotice mode={result.mode} message={result.message} />
         {parsed.invalid && (
           <p className="inline-message" role="status">Ein Suchfilter war ungültig und wurde zurückgesetzt.</p>
         )}
         <header className="page-heading">
           <p className="eyebrow">Der Katalog</p>
-          <h1>Entdecken</h1>
-          <p>Suche nach Produkt oder Marke. Angezeigt werden nur freigegebene Einträge.</p>
+          <h1>Alle Spirituosen</h1>
+          <p>Freigegebene Produkte und belegte Angaben entdecken.</p>
         </header>
 
         {result.status === 'error' ? (

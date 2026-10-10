@@ -133,3 +133,41 @@ Commitstatus: lokaler Commit auf `main` nach Abschluss der hier dokumentierten G
 - GitHub dokumentiert für private Repositories ein planabhängiges Actions-Minutenkontingent (Free: 2.000 Minuten/Monat) und Abrechnung bei Überschreitung ([GitHub Actions Billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)). Das aktuelle Kontingent bzw. Ausgabenlimit des Kontos wurde nicht gelesen oder verändert. Ein Push, der den CI-Workflow auslösen könnte, bleibt bis zur Klärung der Abrechnungsfreigabe offen.
 - Lokaler Sprint-2.5-Code-/Screenshot-Commit auf `main`: `965c7c4b09705fa303ecdb4236001e2343ea46dd`.
 - `gitleaks` und `trufflehog` sind nicht installiert. Der Secret-Scan ist ein dokumentierter Muster-Scan und kein Ersatz für einen späteren CI-/GitHub-Secret-Scanning-Lauf.
+
+## 2026-10-10 — Modern Oak UI Redesign
+
+### Änderungen und Preview-Grenze
+
+- Überarbeitet wurden Sidebar, globaler Header, Start-/Katalog-/Detaildarstellung, Produktkarten, Responsive-CSS und der derzeit noch nicht verfügbare Beratungsbereich. Die Katalogseiten behalten den vorhandenen serverseitigen Katalogdienst bei; Datenbank-, Import- und RLS-Architektur wurden nicht verändert.
+- Die Designvorschau ist mit `AROMETRA_UI_PREVIEW=true` opt-in, läuft über `npm run ui-preview` auf `127.0.0.1:3130` und verwendet ein separates Next-Ausgabeverzeichnis. Produktionsrouten und Bildendpunkt liefern trotz gesetztem Flag 404. Die Bilder liegen nur in `test/fixtures/ui-preview/`, sind neutral und unbranded. Keine Preview-Fixture wurde importiert.
+- Screenshots und visuelle Review: `artifacts/qa/ui-redesign/`. Die responsive Vorschau wurde bei 1440/1280/768/390/320 px geprüft; Spaltenzahl 3/3/2/1/1 und kein horizontaler Überlauf. Sidebar-Aufklappen, Drawer/Escape, Suche, normale Detailansicht und QR-Testfälle wurden im Browser geprüft.
+
+### Verifikation
+
+- `npm run lint` — 42 Dateien geprüft, erfolgreich. `npm run typecheck` — erfolgreich. `npm test` — 6 Dateien / 40 Tests erfolgreich.
+- `AROMETRA_NEXT_DIST_DIR=.next-ui-redesign AROMETRA_DATA_MODE=fixtures AROMETRA_UI_PREVIEW=true npm run build` — Next.js 16.4.0 Production-Build erfolgreich.
+- `npm audit --audit-level=high` — 0 Schwachstellen.
+- Axe-Prüfungen der Home-, Preview- und mobilen Drawer-Zustände — keine gemeldeten WCAG 2.2 AA-Tag-Verstöße.
+- Alle sechs Browser-Testfälle haben mindestens einen erfolgreichen Playwright-Lauf. Der komplette Suite-Lauf war zweimal instabil: das installierte System-Chrome wurde nach vier bestandenen Fällen geschlossen, einmal beim `page`-Setup des QR-Falls und einmal beim `newContext`. QR bestand anschließend isoliert und mit dem mobilen Fall zusammen (2/2); die aktualisierte lokale Preview/Screenshot-Prüfung bestand separat (1/1). Ein durchgängiger 6/6-Lauf wird daher nicht behauptet.
+- Der dedizierte Preview-Launcher wurde gestartet; `lsof` bestätigte `127.0.0.1:3130`. Lokale Vorschau: 200, nicht-lokaler Host: 404.
+- Produktions-Smoke-Test mit `AROMETRA_UI_PREVIEW=true`: `/ui-preview`, `/ui-preview/designprofil-a` und `/api/ui-preview/bottle-amber.jpg` jeweils 404; `/` 200 mit Produktions-Fixture-Sperre und ohne Design-Fixture.
+- `docs/UI_REDESIGN_REPORT.md` enthält Screenshots, Implementierungsgrenzen und die vollständigen Browser-Ergebnisse.
+
+### Offene Grenzen
+
+- Keine Supabase-Entwicklungszugangsdaten. Live-Abfragen, Supabase-Auth, PostgREST, RLS und ein echter Produkt-/QR-Ablauf sind weiterhin ungeprüft. Der Datenbankbestand eines nicht erreichbaren Projekts ist unbekannt; Screenshots verwenden ausschließlich markierte Design-Fixtures.
+- Keine produktiv nutzbaren Produktbilder oder realen Produktdatensätze neu hinzugefügt.
+- Push bleibt gemäß Nutzeranweisung bis zur Freigabe und Klärung möglicher GitHub-Actions-Kosten zurückgestellt.
+
+## 2026-10-10 — Supabase-Konfigurationsaudit
+
+- `.env.local` war am erwarteten Projektpfad nicht vorhanden. Weder `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` noch die bisherigen `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`-Aliases waren geladen. Auch der explizite Development-Project-Ref und die getrennten Nicht-Admin-/Owner-Editor-JWTs fehlten. Es wurden keine geheimen Werte ausgegeben.
+- `git check-ignore -v .env.local` bestätigt die `.env.*`-Ignore-Regel; `git ls-files --error-unmatch .env.local` bestätigt, dass die Datei nicht versioniert ist.
+- Secret-Musterscan der geänderten/neuen Textdateien traf ausschließlich den bestehenden synthetischen Negativtest `https://user:pass@dev.supabase.co` in `test/unit/supabase-configuration.test.ts`; das ist ein absichtlich falscher Parser-Testwert, kein Zugang. Keine Credential-Werte aus Konfiguration oder Laufzeit gefunden.
+- Die Laufzeit, Import-CLI und Supabase-Integrationstest akzeptieren nun beide Variablennamenspaare; widersprüchliche Aliaswerte werden abgelehnt. `.env.example` und README dokumentieren die `NEXT_PUBLIC_…`-Namen. Publishable-Key-only-Prüfung bleibt bestehen.
+- `npm run lint` — 42 Dateien, bestanden. `npm run typecheck` — bestanden. `npm test` — 6 Dateien / 41 Tests bestanden (einschließlich neuem Alias-/Konflikttest). `AROMETRA_NEXT_DIST_DIR=.next-ui-redesign AROMETRA_DATA_MODE=supabase npm run build` — bestanden.
+- Der Produktionsserver wurde ohne Supabase-Konfiguration im `supabase`-Modus abgefragt: Home HTTP 200 mit dem sicheren Konfigurationsfehler, kein synthetisches Prüfprodukt im HTML.
+- `npm run test:integration:supabase` — `BLOCKED` vor jeder Netzwerkanfrage; URL, Publishable Key und getrennte Auth-JWTs fehlen. Keine tatsächlichen Datenbankabfragen, Auth-, PostgREST- oder RLS-Ergebnisse.
+- `supabase migration list --linked` — `ProjectRefNotLinkedError`. Lokale CLI 2.120.0 ist installiert, aber es existiert kein verbundenes Hosted-Projekt. Die vier lokalen Migrationen sind im PGlite-Testlauf geprüft. Ein Remote-Pending-Set lässt sich nicht bestimmen.
+- Migrationen statisch geprüft: keine direkten `DROP TABLE`, `TRUNCATE` oder `DELETE`-Statements; Migration 2 ersetzt eine Provenienz-Constraint. Es wurde kein Remote-Link, Dry-Run, Seed, Reset oder Schreibzugriff ausgeführt. Der vorhandene Remote-Schema-/Datenzustand bleibt unbekannt.
+- Detaillierter Status und notwendige Zugangsdaten: `docs/SUPABASE_INTEGRATION_STATUS.md`.

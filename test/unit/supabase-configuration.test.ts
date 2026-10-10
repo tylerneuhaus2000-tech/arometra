@@ -26,6 +26,19 @@ describe('Supabase runtime configuration checks', () => {
     expect(parsePublicSupabaseConfiguration({ ...base, SUPABASE_URL: 'http://localhost:54321' }, 'production')).toBeNull();
   });
 
+  it('loads the NEXT_PUBLIC names and rejects conflicting aliases', () => {
+    expect(parsePublicSupabaseConfiguration({
+      NEXT_PUBLIC_SUPABASE_URL: 'https://dev-project.supabase.co',
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_only',
+    })?.url).toBe('https://dev-project.supabase.co');
+
+    expect(parsePublicSupabaseConfiguration({
+      SUPABASE_URL: 'https://other-project.supabase.co',
+      NEXT_PUBLIC_SUPABASE_URL: 'https://dev-project.supabase.co',
+      SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_only',
+    })).toBeNull();
+  });
+
   it('rejects URL credentials, query strings, and non-root endpoints', () => {
     const key = 'sb_publishable_test_only';
     expect(parsePublicSupabaseConfiguration({ SUPABASE_URL: 'https://user:pass@dev.supabase.co', SUPABASE_PUBLISHABLE_KEY: key })).toBeNull();

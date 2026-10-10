@@ -13,13 +13,17 @@ Voraussetzung: Node.js 20.9 oder neuer und npm.
 
 Die Beispielkonfiguration aktiviert ausdrücklich `AROMETRA_DATA_MODE=fixtures`. Alle betroffenen Seiten zeigen dann einen Hinweis, dass es synthetische Prüfprofile und keine realen Produktangaben sind. Dieser Modus wird in Produktionsumgebungen verweigert.
 
+### Lokale Designvorschau
+
+Für das Modern-Oak-Design gibt es eine separate, ausdrücklich synthetische Vorschau. Sie enthält drei neutrale Layout-Fixtures mit generischen Designbildern und keine echten Produkte, Verkostungsdaten, Bewertungen oder Empfehlungen. Starte sie ausschließlich mit `npm run ui-preview` und öffne `http://127.0.0.1:3130/ui-preview`. Der dedizierte Startbefehl bindet den Entwicklungsserver an Loopback; `AROMETRA_UI_PREVIEW_PORT` kann bei Bedarf einen freien Port festlegen. Die Vorschau-Routen und ihre Bilder liefern unter `NODE_ENV=production` stets 404.
+
 ## Supabase verbinden
 
 Ein eigenes Entwicklungsprojekt oder ein lokaler Supabase-Stack kann verwendet werden. Es sind keine Zugangsdaten im Repository abgelegt.
 
 1. Einen lokalen Stack mit Docker-kompatiblem Containerdienst starten: `npm run db:start`.
 2. Migration und reine Taxonomie-Seeds lokal anwenden: `npm run db:reset:local`.
-3. `AROMETRA_DATA_MODE=supabase`, `SUPABASE_URL` und `SUPABASE_PUBLISHABLE_KEY` in `.env.local` setzen.
+3. `AROMETRA_DATA_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` setzen. Serverseitige Tools akzeptieren zusätzlich die bisherigen unpräfigierten Namen; widersprüchliche Doppelwerte werden abgelehnt.
 4. Datenbanktypen bei erreichbarer lokaler Datenbank generieren: `npm run db:types`.
 
 Die Laufzeit akzeptiert nur Publishable Keys (oder einen Legacy-`anon`-JWT), niemals Secret-/Service-Role-Keys. HTTP ist nur für Loopback-Entwicklung zulässig. Es gibt keine Produkt-Seeds. Öffentliche Reads erfordern RLS, freigegebene Rechte und passende aktuelle Provenienz pro gefülltem Feld.

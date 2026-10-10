@@ -8,6 +8,8 @@ export function SiteFrame({
   selectedCategory,
   searchTerm,
   searchCategory,
+  searchAction,
+  activeItem = 'catalog',
   children,
   footerNote = 'Produktinformationen mit nachvollziehbarer Herkunft.',
 }: {
@@ -15,21 +17,30 @@ export function SiteFrame({
   selectedCategory?: string;
   searchTerm?: string;
   searchCategory?: string;
+  searchAction?: string;
+  activeItem?: 'discover' | 'catalog' | 'category' | 'advice';
   children: ReactNode;
   footerNote?: string;
 }) {
   return (
     <>
       <a className="skip-link" href="#main-content">Zum Inhalt springen</a>
-      <SiteHeader searchTerm={searchTerm} searchCategory={searchCategory} />
+      <SiteHeader searchTerm={searchTerm} searchCategory={searchCategory} searchAction={searchAction} />
       <div className="site-layout">
-        <CatalogSidebar categories={categories} selectedCategory={selectedCategory} searchTerm={searchTerm} />
-        <div className="site-layout__main">{children}</div>
+        <CatalogSidebar
+          categories={categories}
+          selectedCategory={selectedCategory}
+          searchTerm={searchTerm}
+          activeItem={activeItem}
+        />
+        <div className="site-layout__main">
+          {children}
+          <footer className="site-footer">
+            <span>AROMETRA</span>
+            <span>{footerNote}</span>
+          </footer>
+        </div>
       </div>
-      <footer className="site-footer content-wrap">
-        <span>AROMETRA</span>
-        <span>{footerNote}</span>
-      </footer>
     </>
   );
 }
