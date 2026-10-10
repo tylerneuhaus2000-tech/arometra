@@ -116,7 +116,7 @@ Commitstatus: lokaler Commit auf `main` nach Abschluss der hier dokumentierten G
 - Production-Server ohne `AROMETRA_DATA_MODE` gestartet. Home, Entdecken und unbekannter Steckbrief lieferten HTTP 200 mit dem jeweiligen unkonfigurierten Leer-/Fehlerzustand; synthetische Profile waren nicht im HTML. Eine Browserprüfung bestätigte außerdem die mobile Suche. Screenshots: `artifacts/qa/sprint-2-5/unconfigured/`.
 - Fixture-E2E-Screenshots wurden getrennt und vollständig als synthetisch gekennzeichnet in `artifacts/qa/sprint-2-5/` gespeichert. Ältere referenzierte QA-Bilder wurden nicht überschrieben. Alle acht Bilder wurden visuell geprüft.
 - `npm run import:dry-run -- --file test/fixtures/catalog-import.json` — eine ausdrücklich synthetische Zeile, `incomplete=1`, `invalid=0`; keine Übernahme in App oder Datenbank.
-- `npm run test:integration:supabase` — `BLOCKED` mit dem sicheren Hinweis, dass Projekt-URL, Publishable Key und getrennte kurzlebige Nicht-Admin-/Owner-Editor-Test-JWTs fehlen. Keine Live-RLS-, Auth- oder PostgREST-Ergebnisse.
+- `npm run test:integration:supabase` — `BLOCKED` mit dem sicheren Hinweis, dass Projekt-URL, Publishable Key und getrennte kurzlebige Nicht-Admin-/Owner-Editor-Test-JWTs fehlen. Eine Variablen-Namensprüfung bestätigte außerdem: `AROMETRA_SUPABASE_TARGET` und `AROMETRA_DEVELOPMENT_PROJECT_REF` fehlen. Keine Live-RLS-, Auth- oder PostgREST-Ergebnisse.
 - `npm audit --audit-level=high` — 0 Schwachstellen. Secret-Musterprüfung über 73 versionierte und nicht ignorierte Textdateien — keine Credential-Muster. `git diff --check` — erfolgreich.
 
 ### Daten und Quellen
