@@ -10,6 +10,7 @@
     "ui-preview": "node scripts/start-ui-preview.mjs",
     "build": "next build",
     "start": "next start",
+    "pages:config": "node scripts/write-pages-config.mjs",
     "lint": "biome lint src test scripts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

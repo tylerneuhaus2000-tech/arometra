@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#171613" />
+    <meta name="description" content="AROMETRA – geprüfte Produktfakten und Aromen entdecken." />
+    <title>AROMETRA – Spirituosen entdecken</title>
+    <link rel="stylesheet" href="./pages.css" />
+    <script src="./pages-config.js"></script>
+    <script type="module" src="./pages.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="wordmark" href="./" aria-label="AROMETRA Startseite">AROMETRA</a>
+        <label class="searchbox" for="catalog-search"><span aria-hidden="true">⌕</span><input id="catalog-search" type="search" placeholder="Spirituosen suchen …" autocomplete="off" /></label>
+        <button class="menu-toggle" id="menu-toggle" aria-label="Navigation öffnen" aria-expanded="false">☰</button>
+      </header>
+      <div class="layout">
+        <aside class="sidebar" id="sidebar">
+          <p class="sidebar-label">ENTDECKEN</p>
+          <button class="nav-link is-active" data-category="">Alle Produkte</button>
+          <div id="categories" class="category-list" aria-label="Spirituosenkategorien"></div>
+          <div class="sidebar-bottom"><span class="oak-mark" aria-hidden="true"></span><span>Produktwissen mit Herkunft</span></div>
+        </aside>
+        <main id="main" tabindex="-1">
+          <div id="status" class="status" role="status">Katalog wird geladen …</div>
+          <section id="catalog-view" hidden>
+            <div class="page-title"><p class="eyebrow">AROMETRA · PRODUKTKATALOG</p><h1>Entdecke Spirituosen</h1><p>Geprüfte Produktfakten und belegte Aromen.</p></div>
+            <div class="result-meta" id="result-meta"></div>
+            <div class="product-grid" id="product-grid"></div>
+          </section>
+          <section id="detail-view" hidden></section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>
