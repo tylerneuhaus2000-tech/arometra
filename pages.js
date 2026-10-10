@@ -23,9 +23,11 @@ function showError(message) {
   $('#status').textContent = message;
 }
 
-function bottle(categorySlug, name) {
-  const palette = categorySlug || '';
-  return `<div class="bottle-stage" data-category="${esc(palette)}" aria-label="Neutrale Illustration, kein Produktfoto"><div class="bottle" aria-hidden="true"></div><span class="bottle-word" aria-hidden="true">AROMETRA</span></div>`;
+function visual(product) {
+  if (product.imageUrl) {
+    return `<div class="bottle-stage bottle-stage--photo"><img class="product-image" src="${esc(product.imageUrl)}" alt="${esc(product.imageAlt || `Produktfoto ${product.name}`)}" loading="lazy" referrerpolicy="no-referrer"></div>`;
+  }
+  return '<div class="bottle-stage bottle-stage--empty" role="img" aria-label="Kein freigegebenes Produktfoto vorhanden"><span>Kein Produktfoto</span></div>';
 }
 
 function renderCategories() {
@@ -62,7 +64,7 @@ function flavorTags(product, count = 3) {
 
 function card(product) {
   const tags = flavorTags(product, 3);
-  return `<a class="product-card" href="?produkt=${encodeURIComponent(product.slug)}" aria-label="${esc(product.name)} ansehen">${bottle(product.category_slug, product.name)}<div class="product-copy"><h2>${esc(product.name)}</h2><p>${esc(product.brand_name)} · ${esc(product.category_name_de)}${product.origin_country_code ? ` · ${esc(product.origin_country_code)}` : ''}</p>${tags ? `<div class="tags">${tags}</div>` : ''}</div></a>`;
+  return `<a class="product-card" href="?produkt=${encodeURIComponent(product.slug)}" aria-label="${esc(product.name)} ansehen">${visual({ ...product, imageAlt: product.imageAlt || `Produktfoto ${product.name}` })}<div class="product-copy"><h2>${esc(product.name)}</h2><p>${esc(product.brand_name)} · ${esc(product.category_name_de)}${product.origin_country_code ? ` · ${esc(product.origin_country_code)}` : ''}</p>${tags ? `<div class="tags">${tags}</div>` : ''}</div></a>`;
 }
 
 function renderCatalog() {
@@ -119,9 +121,12 @@ async function showProduct(slug) {
     if (!search.length) throw new Error('product_not_found');
     const product = search[0];
     const [profile] = await Promise.all([api('rpc/get_product_sensory_profile', { method: 'POST', body: JSON.stringify({ target_product_id: product.id }) })]);
+    const productImage = state.products.find((item) => item.id === product.id);
+    product.imageUrl = productImage?.imageUrl || null;
+    product.imageAlt = productImage?.imageAlt || `Produktfoto ${product.name}`;
     const recs = recommendationCandidates({ ...product, sensoryTags: (profile || []).filter((row) => row.tag_code).map((row) => ({ tag_code: row.tag_code })) });
     $('#status').hidden = true;
-    $('#detail-view').innerHTML = `<article class="detail"><a class="back-link" href="./">← Alle Spirituosen</a><header class="detail-head">${bottle(product.category.slug, product.name)}<div><p class="eyebrow">${esc(product.category.name_de)}</p><h1>${esc(product.name)}</h1>${product.product_family ? `<p>${esc(product.product_family)}</p>` : ''}<p>Geprüfte Produktfakten aus dem Katalog.</p></div></header><section class="detail-section"><h2>Steckbrief</h2><div class="facts">${detailFacts(product) || '<p class="empty">Weitere Angaben sind noch nicht belegt.</p>'}</div></section><section class="detail-section"><h2>Geschmack &amp; Aroma</h2>${renderProfile(profile || [])}</section><section class="detail-section"><h2>Herstellung &amp; Herkunft</h2><div class="facts">${product.distillation_details ? `<div class="fact"><label>Herstellung</label><span>${esc(product.distillation_details)}</span></div>` : ''}${product.maturation_details ? `<div class="fact"><label>Reifung</label><span>${esc(product.maturation_details)}</span></div>` : ''}${product.origin_region ? `<div class="fact"><label>Region</label><span>${esc(product.origin_region)}</span></div>` : '<p class="empty">Zusätzliche Angaben sind nicht hinterlegt.</p>'}</div></section><section class="detail-section"><h2>Ähnliche Produkte</h2>${recs.length ? `<div class="detail-recs">${recs.map(({ product: item, shared }) => `<a class="product-card" href="?produkt=${encodeURIComponent(item.slug)}">${bottle(item.category_slug, item.name)}<div class="product-copy"><h2>${esc(item.name)}</h2><p>Gemeinsame belegte Merkmale: ${shared.map((tag) => esc(tag.tag_label_de)).join(' · ')}</p></div></a>`).join('')}</div>` : '<p class="empty">Für passende Empfehlungen fehlen noch gemeinsame geprüfte Aroma-Tags.</p>'}</section></article>`;
+    $('#detail-view').innerHTML = `<article class="detail"><a class="back-link" href="./">← Alle Spirituosen</a><header class="detail-head">${visual(product)}<div><p class="eyebrow">${esc(product.category.name_de)}</p><h1>${esc(product.name)}</h1>${product.product_family ? `<p>${esc(product.product_family)}</p>` : ''}<p>Geprüfte Produktfakten aus dem Katalog.</p></div></header><section class="detail-section"><h2>Steckbrief</h2><div class="facts">${detailFacts(product) || '<p class="empty">Weitere Angaben sind noch nicht belegt.</p>'}</div></section><section class="detail-section"><h2>Geschmack &amp; Aroma</h2>${renderProfile(profile || [])}</section><section class="detail-section"><h2>Herstellung &amp; Herkunft</h2><div class="facts">${product.distillation_details ? `<div class="fact"><label>Herstellung</label><span>${esc(product.distillation_details)}</span></div>` : ''}${product.maturation_details ? `<div class="fact"><label>Reifung</label><span>${esc(product.maturation_details)}</span></div>` : ''}${product.origin_region ? `<div class="fact"><label>Region</label><span>${esc(product.origin_region)}</span></div>` : '<p class="empty">Zusätzliche Angaben sind nicht hinterlegt.</p>'}</div></section><section class="detail-section"><h2>Ähnliche Produkte</h2>${recs.length ? `<div class="detail-recs">${recs.map(({ product: item, shared }) => `<a class="product-card" href="?produkt=${encodeURIComponent(item.slug)}">${visual(item)}<div class="product-copy"><h2>${esc(item.name)}</h2><p>Gemeinsame belegte Merkmale: ${shared.map((tag) => esc(tag.tag_label_de)).join(' · ')}</p></div></a>`).join('')}</div>` : '<p class="empty">Für passende Empfehlungen fehlen noch gemeinsame geprüfte Aroma-Tags.</p>'}</section></article>`;
   } catch (error) {
     showError(error.message === 'product_not_found' ? 'Dieses Produkt wurde nicht im freigegebenen Katalog gefunden.' : 'Produktdaten konnten gerade nicht geladen werden.');
   }
@@ -143,12 +148,19 @@ async function start() {
   if (!CONFIG?.url || !CONFIG?.publishableKey) return showError('Die öffentliche Supabase-Konfiguration fehlt.');
   try {
     const args = { search_term: null, normalized_term: null, category_slug: null, flavor_code: null, origin_country_code: null, brand_slug: null, page_number: 1, page_size: 500 };
-    const [products, categories] = await Promise.all([
+    const [products, categories, images] = await Promise.all([
       api('rpc/search_catalog', { method: 'POST', body: JSON.stringify(args) }),
       api('categories?select=id,parent_id,slug,name_de&active=eq.true&order=sort_order.asc'),
+      api('product_images?select=id,product_id,source_url,alt_text,sort_order,source:sources!inner(source_name,canonical_url)&order=sort_order.asc'),
     ]);
     state.products = products || [];
     state.categories = categories || [];
+    const imagesByProduct = new Map();
+    for (const image of images || []) {
+      if (!image.source_url || imagesByProduct.has(image.product_id)) continue;
+      imagesByProduct.set(image.product_id, { imageUrl: image.source_url, imageAlt: image.alt_text });
+    }
+    for (const product of state.products) Object.assign(product, imagesByProduct.get(product.id) || {});
     if (state.products.length) {
       const ids = state.products.map((product) => product.id);
       const tags = await api('rpc/get_public_sensory_tags', { method: 'POST', body: JSON.stringify({ target_product_ids: ids }) });
