@@ -89,6 +89,7 @@ Commitstatus: lokaler Commit auf `main` nach Abschluss der hier dokumentierten G
 
 ### Re-Audit vor dem Sprint-2-Commit am 2026-10-10
 
+- Verifizierter Sprint-2-Implementierungscommit auf `main`: `916499063a01e623d5187cbc7f6abf020c2bf05d`; Ausgangscommit: `35b4345`.
 - Secret-Musterprüfung über 75 getrackte und nicht ignorierte Dateien: keine Treffer; `.env.local` fehlt. `gitleaks`/`trufflehog` sind in der Umgebung nicht installiert. Die Prüfung gibt keine möglichen Geheimniswerte aus.
 - `npm run lint` und `npm run typecheck` — erfolgreich; `npm test` — 5 Dateien, 36 Tests bestanden, einschließlich der SQL-Sperre gegen abweichende Lizenz-/Terms-Metadaten im Quellen-Snapshot.
 - `AROMETRA_NEXT_DIST_DIR=.next-build npm run build` — erfolgreich. Next.js änderte generierte Pfade in `next-env.d.ts` und `tsconfig.json`; diese Build-/Dev-Artefakte wurden auf den eingecheckten Stand zurückgesetzt.
