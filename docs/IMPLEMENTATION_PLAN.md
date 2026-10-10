@@ -80,7 +80,7 @@ Die Prüfergebnisse zu Tests, Datenquellen, Konfiguration und Blockern stehen in
 - Es gibt **0 echte, im AROMETRA-Katalog verifizierte Produktdatensätze**, **0 freigegebene Datenquellen** und **0 lizenzierte Produktbilder**. Tatsächlicher Produktbestand eines Liveprojekts ist mangels Verbindung unbekannt.
 - Supabase-URL, Publishable Key, Entwicklungs-Projekt-Ref und getrennte kurzlebige Auth-JWTs für Nicht-Admin und Owner/Editor fehlen. Deshalb sind Remote-Migrationen und Live-RLS-/Auth-/PostgREST-Integrationstests nicht ausgeführt.
 - Open Food Facts wurde nicht abgefragt/importiert; Entscheidung zu ODbL, Attribution, Share-Alike und Bildlizenzen offen. Herstellerseiten erteilen in der Recherche keine AROMETRA-Nutzungsrechte.
-- Die Actions-Pipeline liegt lokal in `.github/workflows/ci.yml`; GitHub Actions lief mangels bestätigtem Remote nicht. Es wurde keine Änderung an einer anderen Anwendung oder einem fremden Repository vorgenommen.
+- Das private Repository `tylerneuhaus2000-tech/arometra` wurde unter dem im Masterprompt vorgesehenen, aktiv authentifizierten Konto angelegt; `origin` ist gesetzt. Der Branch ist noch nicht gepusht, GitHub Actions daher noch nicht gelaufen. GitHub berechnet private Actions-Nutzung oberhalb des Kontingents; das aktuelle Kontingent/Ausgabenlimit wurde nicht geprüft. Ein CI-auslösender Push wartet auf Klärung dieser Abrechnungsfreigabe.
 - CI/Sicherheitsprüfungen und die genaue Evidenz stehen in `docs/QA_LOG.md`.
 
 ## Tatsächlicher Stand am 10.10.2026
